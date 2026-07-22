@@ -1,0 +1,2569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vistra — Demand Response Portal</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f4f2;
+  --surface: #ffffff;
+  --surface2: #f0eeea;
+  --border: rgba(0,0,0,0.09);
+  --border-md: rgba(0,0,0,0.16);
+  --text-primary: #1a1a18;
+  --text-secondary: #5a5956;
+  --text-hint: #888680;
+  /* Vistra brand palette */
+  --vistra: #0058A0;
+  --vistra-dark: #003D70;
+  --vistra-bg: #E6EFF8;
+  --vistra-light: #4A90D9;
+  --green: #1D9E75; --green-dark: #0F6E56; --green-bg: #E1F5EE;
+  --blue: #378ADD;  --blue-dark: #185FA5;  --blue-bg: #E6F1FB;
+  --red: #E24B4A;   --amber: #BA7517;      --amber-bg: #FEF3C7;
+  --purple: #7C3AED; --purple-bg: #EDE9FE;
+  --lora: #8B5CF6;  --lora-bg: #F5F3FF;   --lora-dark: #5B21B6;
+  --ami: #059669;   --ami-bg: #ECFDF5;    --ami-dark: #064E3B;
+  --vp: #D97706;    --vp-bg: #FFFBEB;     --vp-dark: #92400E;
+  --radius: 12px; --radius-sm: 8px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); min-height: 100vh; padding: 0 0 3rem; }
+
+/* ── Header ── */
+.sticky-header { position: sticky; top: 0; z-index: 100; background: var(--bg); padding: 1rem 1rem 0.6rem; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+.page-header { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 0.7rem; }
+.vistra-logo { display: flex; align-items: center; gap: 10px; }
+.vistra-logo-mark { width: 36px; height: 36px; background: var(--vistra); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.vistra-logo-mark svg { width: 22px; height: 22px; fill: white; }
+.page-title { font-size: 19px; font-weight: 700; color: var(--vistra-dark); letter-spacing: -0.02em; }
+.page-sub { font-size: 12px; color: var(--text-hint); margin-top: 2px; }
+.tabs { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin-bottom: 0.65rem; }
+.tab-btn { padding: 6px 15px; border-radius: 20px; border: 0.5px solid var(--border-md); background: var(--surface); color: var(--text-secondary); font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.tab-btn.active { background: var(--vistra); color: #fff; border-color: var(--vistra); }
+.tab-btn:hover:not(.active) { background: var(--vistra-bg); color: var(--vistra); }
+.sub-tabs { display: flex; gap: 4px; justify-content: center; padding: 0 1rem 0.5rem; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); margin-bottom: 2px; }
+.sub-tab-btn { padding: 5px 13px; border-radius: 20px; border: 0.5px solid var(--border); background: transparent; color: var(--text-hint); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.sub-tab-btn.active { background: var(--surface2); color: var(--text-primary); border-color: var(--border-md); font-weight: 600; }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 0.5px solid var(--border); font-size: 12px; color: var(--text-secondary); max-width: 960px; margin: 0 auto; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-hint); flex-shrink: 0; transition: background 0.3s; }
+.dot.ready { background: var(--green); }
+.dot.sending { background: var(--amber); animation: blink 0.7s infinite; }
+.dot.error { background: var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.events-bar { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 11px; color: var(--text-hint); max-width: 960px; margin: 4px auto 0; flex-wrap: wrap; }
+.events-bar-label { font-weight: 600; color: var(--text-secondary); }
+
+/* ── Panes ── */
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.scroll-content { padding: 1.25rem 1rem; }
+.layout { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Cards ── */
+.card { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 0.5px solid var(--border); gap: 10px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.card-action { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.card-action:hover { background: var(--vistra-bg); color: var(--vistra); border-color: var(--vistra); }
+
+/* ── Stat pills ── */
+.stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.stat-pill { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1rem; text-align: center; }
+.stat-label { font-size: 10px; font-weight: 700; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text-primary); margin: 6px 0 2px; }
+.stat-sub { font-size: 10px; color: var(--text-hint); }
+
+/* ── Device grid ── */
+.devices-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; max-width: 960px; margin: 0 auto; }
+.device-card { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1.1rem; }
+.device-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; padding-bottom: 0.7rem; border-bottom: 0.5px solid var(--border); }
+.device-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.device-uid { font-size: 10px; color: var(--text-hint); font-family: monospace; margin-top: 2px; }
+.device-badge { width: 8px; height: 8px; border-radius: 50%; background: var(--text-hint); }
+.device-badge.online { background: var(--green); }
+.device-badge.lora { background: var(--lora); }
+.relay-rows { display: flex; flex-direction: column; gap: 7px; margin-bottom: 9px; }
+.relay-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); background: var(--surface2); cursor: pointer; user-select: none; transition: all 0.2s; }
+.relay-row.on { background: var(--green-bg); border-color: var(--green); }
+.relay-row.disabled { opacity: 0.5; pointer-events: none; }
+.relay-row-label { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+.relay-row-state { font-size: 11px; color: var(--text-hint); }
+.relay-row-state.on { color: var(--green-dark); }
+.all-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); background: var(--surface2); cursor: pointer; user-select: none; transition: all 0.2s; }
+.all-row.on { background: var(--vistra-bg); border-color: var(--vistra); }
+.all-row.disabled { opacity: 0.5; pointer-events: none; }
+.all-row-label { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+.all-row-state { font-size: 11px; color: var(--text-hint); }
+.all-row-state.on { color: var(--vistra-dark); }
+.toggle { position: relative; width: 38px; height: 21px; flex-shrink: 0; }
+.track { position: absolute; inset: 0; background: #d3d1c7; border-radius: 22px; transition: background 0.2s; }
+.thumb { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.toggle.on .track { background: var(--green); }
+.toggle.on .thumb { transform: translateX(17px); }
+.toggle.blue.on .track { background: var(--vistra); }
+
+/* ── Data cards ── */
+.data-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; max-width: 960px; margin: 0 auto; }
+.data-card { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1.1rem; }
+.data-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; padding-bottom: 0.7rem; border-bottom: 0.5px solid var(--border); gap: 6px; flex-wrap: wrap; }
+.data-card-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.data-refresh-btn { font-size: 10px; padding: 3px 8px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-secondary); cursor: pointer; }
+.data-refresh-btn:hover { background: var(--vistra-bg); color: var(--vistra); }
+.data-fields { display: flex; flex-direction: column; }
+.data-field { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 5px 0; border-bottom: 0.5px solid var(--border); }
+.data-field:last-child { border-bottom: none; }
+.data-field-name { color: var(--text-secondary); }
+.data-field-value { font-weight: 500; color: var(--text-primary); font-family: monospace; }
+.data-empty { text-align: center; padding: 2rem 0; color: var(--text-hint); font-size: 13px; }
+.data-timestamp { font-size: 10px; color: var(--text-hint); text-align: right; margin-top: 6px; }
+.relay-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; }
+.relay-dot.on { background: var(--green); }
+.relay-dot.off { background: #d3d1c7; }
+
+/* ── Health strip ── */
+.health-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); }
+.health-item { text-align: center; min-width: 48px; }
+.health-label { font-size: 9px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.health-value { font-size: 11px; font-weight: 600; color: var(--text-primary); }
+.health-good { color: var(--green-dark); }
+.health-warn { color: var(--amber); }
+.health-bad  { color: var(--red); }
+.signal-bars { display: flex; gap: 2px; align-items: flex-end; height: 15px; }
+.signal-bar  { width: 4px; background: #d3d1c7; border-radius: 1px; }
+.signal-bar.active { background: var(--green); }
+
+/* ── History ── */
+.history-panel { max-width: 960px; margin: 0 auto; background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1.25rem; }
+.history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+.history-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.history-select { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-secondary); }
+.history-load-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-secondary); cursor: pointer; }
+.history-load-btn:hover { background: var(--vistra-bg); color: var(--vistra); border-color: var(--vistra); }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+thead th { text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--border-md); color: var(--text-hint); font-weight: 500; white-space: nowrap; }
+tbody td { padding: 6px 8px; border-bottom: 0.5px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+tbody tr:hover td { background: var(--surface2); }
+.no-data { text-align: center; padding: 2rem; color: var(--text-hint); font-size: 12px; }
+
+/* ── Sched forms ── */
+.sched-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sched-field { display: flex; flex-direction: column; gap: 4px; }
+.sched-field.full { grid-column: 1 / -1; }
+.sched-label { font-size: 10px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.sched-input { font-size: 13px; padding: 7px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-primary); }
+.sched-input:focus { outline: none; border-color: var(--vistra); background: var(--surface); }
+.sched-select { font-size: 13px; padding: 7px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-primary); cursor: pointer; }
+.sched-select:focus { outline: none; border-color: var(--vistra); }
+.sched-submit-btn { width: 100%; padding: 10px; border-radius: var(--radius-sm); border: none; background: var(--vistra); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 4px; transition: opacity 0.2s; }
+.sched-submit-btn:hover { opacity: 0.88; }
+.sched-empty { text-align: center; padding: 2rem; color: var(--text-hint); font-size: 13px; }
+
+/* Queue items */
+.queue-item { padding: 10px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-md); background: var(--surface2); display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.queue-item.pending    { border-left: 3px solid var(--amber); }
+.queue-item.fired      { border-left: 3px solid var(--vistra); }
+.queue-item.sent       { border-left: 3px solid var(--vistra); }
+.queue-item.received   { border-left: 3px solid var(--green); }
+.queue-item.started    { border-left: 3px solid #16a34a; }
+.queue-item.ended      { border-left: 3px solid var(--text-hint); opacity: 0.7; }
+.queue-item.rejected   { border-left: 3px solid var(--red); opacity: 0.7; }
+.queue-item.cancelled  { border-left: 3px solid var(--text-hint); opacity: 0.5; }
+.queue-info { flex: 1; }
+.queue-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.queue-detail { font-size: 11px; color: var(--text-hint); margin-top: 2px; }
+.queue-status { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 8px; }
+.queue-status.pending  { background: var(--amber-bg); color: var(--amber); }
+.queue-status.fired    { background: var(--vistra-bg); color: var(--vistra-dark); }
+.queue-status.sent     { background: var(--vistra-bg); color: var(--vistra-dark); }
+.queue-status.received { background: var(--green-bg); color: var(--green-dark); }
+.queue-status.started  { background: #F0FDF4; color: #166534; }
+.queue-status.ended    { background: var(--surface2); color: var(--text-secondary); }
+.queue-status.rejected { background: #FEF2F2; color: var(--red); }
+.queue-status.cancelled{ background: var(--surface2); color: var(--text-hint); }
+.queue-cancel-btn { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface); color: var(--red); cursor: pointer; }
+
+/* ── Map ── */
+.map-container { max-width: 960px; margin: 0 auto; background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); overflow: hidden; }
+.map-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; gap: 8px; }
+#map { height: 460px; width: 100%; }
+
+/* ── LoRa specific ── */
+.lora-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: var(--lora-dark); background: var(--lora-bg); border: 0.5px solid var(--lora); border-radius: 10px; padding: 2px 7px; }
+.lora-gateway-card { border-left: 3px solid var(--lora); }
+.rssi-bar { height: 5px; border-radius: 3px; background: var(--lora); margin-top: 4px; transition: width 0.4s; }
+
+/* ── AMI Widget ── */
+.ami-widget { border-left: 3px solid var(--ami); }
+.ami-meter-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 0.5px solid var(--border); font-size: 12px; }
+.ami-meter-row:last-child { border-bottom: none; }
+.ami-meter-id { font-family: monospace; font-size: 11px; color: var(--text-hint); }
+.ami-kwh { font-weight: 700; color: var(--ami-dark); font-size: 13px; }
+.ami-delta { font-size: 10px; padding: 2px 6px; border-radius: 8px; }
+.ami-delta.up   { background: #FEF2F2; color: var(--red); }
+.ami-delta.down { background: var(--green-bg); color: var(--green-dark); }
+.ami-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ami); display: inline-block; margin-right: 4px; }
+.ami-chart-wrap { height: 120px; margin-top: 10px; }
+
+/* ── Virtual Peaker ── */
+.vp-widget { border-left: 3px solid var(--vp); }
+.vp-event-row { padding: 10px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); background: var(--surface2); margin-bottom: 8px; }
+.vp-event-row.active-event { background: var(--vp-bg); border-color: var(--vp); }
+.vp-event-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.vp-event-meta { font-size: 11px; color: var(--text-hint); margin-top: 3px; }
+.vp-capacity-bar { height: 8px; background: var(--border-md); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+.vp-capacity-fill { height: 100%; background: var(--vp); border-radius: 4px; transition: width 0.5s; }
+.vp-sync-btn { padding: 5px 12px; border-radius: var(--radius-sm); border: 0.5px solid var(--vp); background: var(--vp-bg); color: var(--vp-dark); font-size: 11px; font-weight: 600; cursor: pointer; }
+.vp-sync-btn:hover { background: var(--vp); color: #fff; }
+.vp-kw-display { font-size: 22px; font-weight: 700; color: var(--vp-dark); }
+.vp-kw-label { font-size: 11px; color: var(--text-hint); }
+
+/* ── Event Reporting ── */
+.event-report-card { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); }
+.er-header { background: var(--vistra); color: white; padding: 14px 18px; border-radius: var(--radius) var(--radius) 0 0; display: flex; align-items: center; justify-content: space-between; }
+.er-title { font-size: 14px; font-weight: 700; }
+.er-body { padding: 1.25rem; }
+.er-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1rem; }
+.er-stat { text-align: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 10px; }
+.er-stat-val { font-size: 24px; font-weight: 700; color: var(--vistra-dark); }
+.er-stat-lbl { font-size: 10px; color: var(--text-hint); margin-top: 2px; }
+.er-device-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 0.5px solid var(--border); font-size: 12px; }
+.er-device-row:last-child { border-bottom: none; }
+.er-device-name { flex: 1; font-weight: 500; }
+.er-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.er-pill.received  { background: var(--green-bg);   color: var(--green-dark); }
+.er-pill.started   { background: #F0FDF4;            color: #166534; }
+.er-pill.ended     { background: var(--surface2);    color: var(--text-secondary); }
+.er-pill.no-event  { background: var(--amber-bg);    color: var(--amber); }
+.er-pill.rejected  { background: #FEF2F2;            color: var(--red); }
+.er-export-btn { font-size: 11px; padding: 5px 12px; border-radius: 6px; border: 0.5px solid var(--green); background: var(--green-bg); color: var(--green-dark); cursor: pointer; font-weight: 600; }
+.er-export-btn:hover { background: var(--green); color: white; }
+
+/* ── Groups ── */
+.groups-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 960px; margin: 0 auto; }
+.group-card { background: var(--surface); border: 0.5px solid var(--border-md); border-radius: var(--radius); padding: 1.1rem; }
+.group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; padding-bottom: 0.7rem; border-bottom: 0.5px solid var(--border); gap: 10px; }
+.group-name-input { font-size: 14px; font-weight: 600; color: var(--text-primary); border: none; background: transparent; flex: 1; outline: none; border-bottom: 1.5px dashed var(--border-md); padding-bottom: 2px; }
+.group-save-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 0.5px solid var(--border-md); background: var(--surface2); color: var(--text-secondary); cursor: pointer; }
+.group-device-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); background: var(--surface2); margin-bottom: 6px; }
+.group-device-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--vistra); cursor: pointer; flex-shrink: 0; }
+.group-member { background: var(--vistra-bg); border-color: var(--vistra); }
+.group-cmd-btn { flex: 1; padding: 7px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-md); font-size: 11px; font-weight: 500; cursor: pointer; }
+.group-cmd-btn.on  { background: var(--green-bg); border-color: var(--green); color: var(--green-dark); }
+.group-cmd-btn.off { background: var(--surface2); color: var(--text-secondary); }
+
+/* ── Admin ── */
+.enroll-check-row { display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius-sm);background:var(--surface2);font-size:13px;margin-bottom:6px; }
+.enroll-check-row.done   { background:rgba(22,163,74,0.08); }
+.enroll-check-row.active { background:rgba(0,88,160,0.08);font-weight:600; }
+.enroll-check-row.failed { background:rgba(220,38,38,0.08); }
+.enroll-chk-icon { font-size:16px;min-width:20px;text-align:center; }
+
+/* ── Login ── */
+.login-overlay { position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center; }
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .stats-row { grid-template-columns: repeat(2,1fr); }
+  .devices-grid,.data-grid,.groups-layout { grid-template-columns: 1fr; }
+  .er-grid { grid-template-columns: repeat(2,1fr); }
+  .sched-form { grid-template-columns: 1fr; }
+  .sched-field.full { grid-column: auto; }
+  #map { height: 320px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOGIN OVERLAY ══════════ -->
+<div id="login-overlay" class="login-overlay">
+  <div style="width:100%;max-width:420px;padding:1rem;">
+    <div style="text-align:center;margin-bottom:2rem;">
+      <div style="font-size:22px;font-weight:800;color:var(--vistra-dark);">Vistra Energy</div>
+      <div style="font-size:12px;color:var(--text-hint);margin-top:4px;">Demand Response Portal</div>
+    </div>
+    <div class="card" style="padding:1.5rem;">
+      <div id="login-step-1">
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">Email</label>
+          <input type="email" id="login-email" placeholder="you@vistra.com"
+            style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;"
+            onkeydown="if(event.key==='Enter')loginSubmit()" />
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••"
+            style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;"
+            onkeydown="if(event.key==='Enter')loginSubmit()" />
+        </div>
+        <button onclick="loginSubmit()" id="login-btn" style="width:100%;padding:11px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:14px;font-weight:700;cursor:pointer;">
+          Sign In
+        </button>
+        <div id="login-error" style="margin-top:10px;font-size:12px;color:var(--red);text-align:center;display:none;"></div>
+        <div style="text-align:center;margin-top:14px;">
+          <button onclick="showStep(2)" style="background:none;border:none;font-size:12px;color:var(--text-hint);cursor:pointer;text-decoration:underline;">Sign in with email OTP</button>
+        </div>
+      </div>
+      <div id="login-step-2" style="display:none;">
+        <div style="text-align:center;margin-bottom:1.25rem;">
+          <div style="font-size:28px;margin-bottom:8px;">📧</div>
+          <div style="font-size:14px;font-weight:600;">Check your email</div>
+          <div style="font-size:12px;color:var(--text-hint);margin-top:4px;">Enter the 6-digit code sent to <span id="login-email-display" style="font-weight:600;"></span></div>
+        </div>
+        <input type="email" id="otp-email" placeholder="your@email.com" style="width:100%;padding:8px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;margin-bottom:10px;" />
+        <button onclick="sendOtp()" style="width:100%;padding:9px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px;">Send Code</button>
+        <input type="text" id="login-otp" placeholder="000000" maxlength="6" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:20px;font-weight:700;letter-spacing:8px;text-align:center;margin-bottom:10px;display:none;" onkeydown="if(event.key==='Enter')otpSubmit()" />
+        <button id="otp-verify-btn" onclick="otpSubmit()" style="width:100%;padding:9px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:13px;font-weight:600;cursor:pointer;display:none;">Verify Code</button>
+        <button onclick="showStep(1)" style="width:100%;margin-top:8px;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:12px;color:var(--text-hint);cursor:pointer;">← Back</button>
+        <div id="otp-error" style="margin-top:8px;font-size:12px;color:var(--red);text-align:center;display:none;"></div>
+      </div>
+      <div id="login-step-3" style="display:none;">
+        <div style="text-align:center;margin-bottom:1rem;"><div style="font-size:24px;margin-bottom:8px;">🔑</div><div style="font-size:14px;font-weight:600;">Set your password</div></div>
+        <input type="password" id="new-password" placeholder="New password (min 8 chars)" style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;margin-bottom:10px;" />
+        <input type="password" id="confirm-password" placeholder="Confirm password" style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;margin-bottom:10px;" onkeydown="if(event.key==='Enter')changePasswordSubmit()" />
+        <button onclick="changePasswordSubmit()" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:14px;font-weight:600;cursor:pointer;">Set Password</button>
+        <div id="pw-error" style="margin-top:8px;font-size:12px;color:var(--red);text-align:center;display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ STICKY HEADER ══════════ -->
+<div class="sticky-header">
+  <div class="page-header">
+    <div class="vistra-logo">
+      <div class="vistra-logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.28L13 17v5l5-3-1.22-1.22C19.91 16.26 22 13.26 22 12c0-5.18-3.94-9.45-9-9.95zM11 2.05C5.95 2.55 2 6.82 2 12c0 3.44 1.72 6.47 4.34 8.34L11 22v-5l-2.28-2.28C7.08 13.42 6 11.29 6 12c0-3.42 2.45-6.28 5.74-6.97L11 4.08l-.74-2z"/></svg>
+      </div>
+      <div>
+        <div class="page-title">Vistra Energy</div>
+        <div class="page-sub">Demand Response Portal — GS Fleet</div>
+      </div>
+    </div>
+    <div id="current-user-pill" style="display:none;font-size:11px;color:var(--text-hint);background:var(--surface);border:0.5px solid var(--border-md);border-radius:20px;padding:4px 12px;cursor:pointer;" onclick="switchMain('admin',document.getElementById('main-admin'))">
+      <span id="current-user-email">—</span>
+    </div>
+  </div>
+  <div class="tabs" id="main-tabs">
+    <button class="tab-btn active" id="main-summary"   onclick="switchMain('summary',this)">📊 Summary</button>
+    <button class="tab-btn"        id="main-events"    onclick="switchMain('events',this)">⚡ Events</button>
+    <button class="tab-btn"        id="main-devices"   onclick="switchMain('devices',this)">📡 Devices</button>
+    <button class="tab-btn"        id="main-lora"      onclick="switchMain('lora',this)">🔗 LoRa</button>
+    <button class="tab-btn"        id="main-ami"       onclick="switchMain('ami',this)">🔌 AMI</button>
+    <button class="tab-btn"        id="main-vp"        onclick="switchMain('vp',this)">⚙️ Virtual Peaker</button>
+    <button class="tab-btn"        id="main-map"       onclick="switchMain('map',this)">🗺 Map</button>
+    <button class="tab-btn"        id="main-admin"     onclick="switchMain('admin',this)" style="display:none;">Admin</button>
+  </div>
+  <div class="sub-tabs" id="sub-tabs-events" style="display:none;">
+    <button class="sub-tab-btn active" id="sub-scheduler"  onclick="switchSub('events','scheduler',this)">Schedule Event</button>
+    <button class="sub-tab-btn"        id="sub-eventstats" onclick="switchSub('events','eventstats',this)">Event Statistics</button>
+    <button class="sub-tab-btn"        id="sub-reporting"  onclick="switchSub('events','reporting',this)">Event Reporting</button>
+  </div>
+  <div class="sub-tabs" id="sub-tabs-devices" style="display:none;">
+    <button class="sub-tab-btn active" id="sub-data"     onclick="switchSub('devices','data',this)">Device Status</button>
+    <button class="sub-tab-btn"        id="sub-controls" onclick="switchSub('devices','controls',this)">Controls</button>
+    <button class="sub-tab-btn"        id="sub-history"  onclick="switchSub('devices','history',this)">History</button>
+    <button class="sub-tab-btn"        id="sub-groups"   onclick="switchSub('devices','groups',this)">Groups</button>
+    <button class="sub-tab-btn"        id="sub-settings" onclick="switchSub('devices','settings',this)">Settings</button>
+  </div>
+  <div class="status-bar">
+    <div class="dot ready" id="dot"></div>
+    <span id="status-text">Ready.</span>
+    <span style="margin-left:auto;font-size:10px;color:var(--text-hint);" id="last-refresh-time"></span>
+  </div>
+  <div class="events-bar" id="events-bar">
+    <span class="events-bar-label">Active Events:</span>
+    <span style="color:var(--text-hint);font-size:11px;">None</span>
+  </div>
+</div>
+
+<!-- ══════════ PANES ══════════ -->
+
+<!-- SUMMARY -->
+<div class="tab-pane active" id="tab-summary">
+  <div class="scroll-content">
+    <div class="layout">
+      <div class="stats-row">
+        <div class="stat-pill">
+          <div class="stat-label">Enrolled</div>
+          <div class="stat-value" id="stat-enrolled">—</div>
+          <div class="stat-sub">Total Devices</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-label">Online</div>
+          <div class="stat-value" id="stat-online" style="color:var(--green)">—</div>
+          <div class="stat-sub">Reported &lt; 1hr</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-label">Offline</div>
+          <div class="stat-value" id="stat-offline" style="color:var(--red)">—</div>
+          <div class="stat-sub">No recent report</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-label">Curtailed MW</div>
+          <div class="stat-value" id="stat-mw" style="color:var(--vistra)">—</div>
+          <div class="stat-sub">Current event</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-label">Participation</div>
+          <div class="stat-value" id="stat-participation" style="color:var(--vistra)">—</div>
+          <div class="stat-sub">This season</div>
+        </div>
+      </div>
+      <!-- Device Status Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Fleet Status</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:10px;color:var(--text-hint);" id="summary-refresh-label">Auto-refresh 15s</span>
+            <button class="card-action" onclick="loadProgramSummary()">↻ Refresh</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Device</th><th>Conn.</th><th>Status</th><th>Last Report</th>
+                <th>Event Status</th><th>Relay State</th><th>Signal</th><th>LoRa</th>
+              </tr>
+            </thead>
+            <tbody id="summary-device-tbody">
+              <tr><td colspan="8" class="no-data">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- VP + AMI summary row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <!-- VP mini -->
+        <div class="card vp-widget">
+          <div class="card-header">
+            <div class="card-title">⚙️ Virtual Peaker — Live</div>
+            <button class="card-action vp-sync-btn" onclick="syncVirtualPeaker()">Sync VP</button>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:8px;">
+            <div class="vp-kw-display" id="vp-current-kw">—</div>
+            <div class="vp-kw-label">kW curtailed</div>
+          </div>
+          <div class="vp-capacity-bar"><div class="vp-capacity-fill" id="vp-capacity-fill" style="width:0%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-hint);">
+            <span>0</span><span id="vp-target-label">Target: — kW</span>
+          </div>
+          <div id="vp-next-event" style="margin-top:8px;font-size:11px;color:var(--text-hint);">No upcoming event scheduled</div>
+        </div>
+        <!-- AMI mini -->
+        <div class="card ami-widget">
+          <div class="card-header">
+            <div class="card-title">🔌 AMI — Interval Data</div>
+            <button class="card-action" onclick="refreshAMI()">↻ Refresh</button>
+          </div>
+          <div id="ami-summary-content">
+            <div class="data-empty" style="padding:1rem 0;">Loading AMI data…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EVENTS (scheduler + stats + reporting) -->
+<div class="tab-pane" id="tab-scheduler">
+  <div class="scroll-content">
+    <div class="layout">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Create Demand Response Event</div></div>
+        <div class="sched-form">
+          <div class="sched-field full">
+            <label class="sched-label">Event Name</label>
+            <input class="sched-input" id="sf-name" type="text" placeholder="Event name — auto-generated if blank" onfocus="if(!this.value)getNextEventName().then(n=>{this.value=n;})" />
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Target Type</label>
+            <select class="sched-select" id="sf-target-type" onchange="onTargetTypeChange()">
+              <option value="" disabled selected>— Devices to Include —</option>
+              <option value="group">Group</option>
+              <option value="device">Individual Device</option>
+            </select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Target</label>
+            <select class="sched-select" id="sf-target" onchange="updateSchedulerTimezone()"></select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Relay Action</label>
+            <select class="sched-select" id="sf-action">
+              <option value="" disabled selected>— Choose Relays —</option>
+              <option value="all_on">All Relays ON (full curtailment)</option>
+              <option value="relay1_on">Relay 1 ON</option>
+              <option value="relay2_on">Relay 2 ON</option>
+              <option value="relay3_on">Relay 3 ON</option>
+              <option value="relay4_on">Relay 4 ON</option>
+            </select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Control Mode</label>
+            <select class="sched-select" id="sf-mode">
+              <option value="" disabled selected>— Choose Mode —</option>
+              <option value="dlc">DLC — Direct Load Control</option>
+              <option value="di">DI — Distributed Intelligence</option>
+            </select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Cycle Strategy (Timeout / On / Period)</label>
+            <select class="sched-select" id="sf-strategy" onchange="onStrategyChange()">
+              <option value="" disabled selected>— Choose Cycle —</option>
+              <option value="2|7.5|15">50% — 7.5 min ON / 7.5 min OFF (15 min cycle)</option>
+              <option value="5|7.5|30">25% — 7.5 min ON / 22.5 min OFF (30 min cycle)</option>
+              <option value="9|15|30">50% — 15 min ON / 15 min OFF (30 min cycle)</option>
+              <option value="13|21|30">70% — 21 min ON / 9 min OFF (30 min cycle)</option>
+              <option value="15|24|30">80% — 24 min ON / 6 min OFF (30 min cycle)</option>
+              <option value="19|30|30">100% — 30 min ON (full, 30 min cycle)</option>
+              <option value="1|7.5|7.5">100% — 7.5 min ON (fast cycle)</option>
+            </select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Date</label>
+            <input class="sched-input" id="sf-date" type="date" />
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Start Time</label>
+            <div style="display:flex;gap:6px;">
+              <select class="sched-select" id="sf-hour" style="flex:1;">
+                <option value="" disabled selected>HH</option>
+                <option value="00">12 AM</option><option value="01">1 AM</option><option value="02">2 AM</option>
+                <option value="03">3 AM</option><option value="04">4 AM</option><option value="05">5 AM</option>
+                <option value="06">6 AM</option><option value="07">7 AM</option><option value="08">8 AM</option>
+                <option value="09">9 AM</option><option value="10">10 AM</option><option value="11">11 AM</option>
+                <option value="12">12 PM</option><option value="13">1 PM</option><option value="14">2 PM</option>
+                <option value="15">3 PM</option><option value="16">4 PM</option><option value="17">5 PM</option>
+                <option value="18">6 PM</option><option value="19">7 PM</option><option value="20">8 PM</option>
+                <option value="21">9 PM</option><option value="22">10 PM</option><option value="23">11 PM</option>
+              </select>
+              <span style="padding-top:8px;font-weight:700;color:var(--text-hint);">:</span>
+              <select class="sched-select" id="sf-minute" style="flex:1;">
+                <option value="" disabled selected>MM</option>
+                <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+              </select>
+            </div>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Duration</label>
+            <select class="sched-select" id="sf-duration">
+              <option value="" disabled selected>— Duration —</option>
+              <option value="30">30 min</option><option value="60">1 hour</option>
+              <option value="90">1 hr 30 min</option><option value="120">2 hours</option>
+              <option value="180">3 hours</option><option value="240">4 hours</option>
+              <option value="360">6 hours</option><option value="480">8 hours</option>
+            </select>
+          </div>
+          <div class="sched-field">
+            <label class="sched-label">Timezone</label>
+            <select class="sched-select" id="sf-timezone">
+              <option value="America/Chicago">Central (CT)</option>
+              <option value="America/New_York">Eastern (ET)</option>
+              <option value="America/Denver">Mountain (MT)</option>
+              <option value="America/Los_Angeles">Pacific (PT)</option>
+              <option value="America/Phoenix">Arizona (AZ)</option>
+            </select>
+          </div>
+          <div class="sched-field full">
+            <label class="sched-label">Push to Virtual Peaker</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="sf-push-vp" style="accent-color:var(--vp);width:15px;height:15px;" />
+              Automatically notify Virtual Peaker when this event fires
+            </label>
+          </div>
+          <div class="sched-field full">
+            <button class="sched-submit-btn" onclick="createSchedule()">Schedule DR Event →</button>
+          </div>
+        </div>
+      </div>
+      <!-- Scheduled queue -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Scheduled Events</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select class="history-select" id="sched-range" onchange="loadSchedules()">
+              <option value="future" selected>Upcoming</option>
+              <option value="24">Last 24 Hours</option>
+              <option value="168">Last 7 Days</option>
+              <option value="720">Last 30 Days</option>
+              <option value="">All Events</option>
+            </select>
+            <button class="card-action" onclick="loadSchedules()">Refresh</button>
+          </div>
+        </div>
+        <div id="sched-list"><div class="sched-empty">Loading…</div></div>
+      </div>
+      <!-- Device events received -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Events Received by Devices</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select class="history-select" id="device-events-range" onchange="loadDeviceEvents()">
+              <option value="24" selected>Last 24 hours</option>
+              <option value="168">Last 7 days</option>
+              <option value="720">Last 30 days</option>
+              <option value="">All time</option>
+            </select>
+            <button class="card-action" style="color:var(--red);border-color:var(--red);" onclick="cancelAllEvents()">Cancel All</button>
+            <button class="card-action" onclick="loadDeviceEvents()">Refresh</button>
+          </div>
+        </div>
+        <div id="device-events-list"><div class="sched-empty">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EVENT STATISTICS -->
+<div class="tab-pane" id="tab-eventstats">
+  <div class="scroll-content">
+    <div class="layout">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="stat-pill"><div class="stat-label">Total Events</div><div class="stat-value" id="stats-total-events">—</div><div class="stat-sub">All time</div></div>
+        <div class="stat-pill"><div class="stat-label">Avg Participation</div><div class="stat-value" id="stats-avg-participation" style="color:var(--green)">—</div><div class="stat-sub">Across all events</div></div>
+        <div class="stat-pill"><div class="stat-label">Total Event Hours</div><div class="stat-value" id="stats-total-hours" style="color:var(--vistra)">—</div><div class="stat-sub">Cumulative</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Post-Event Participation</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="participation-event-select"><option value="">— Select Event —</option></select>
+            <button class="card-action" onclick="loadParticipation()">Load</button>
+          </div>
+        </div>
+        <div id="participation-results"><div class="sched-empty">Select an event to view participation stats.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Event History</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select class="history-select" id="stats-range">
+              <option value="168" selected>Last 7 days</option>
+              <option value="720">Last 30 days</option>
+              <option value="2160">Last 90 days</option>
+              <option value="">All time</option>
+            </select>
+            <button class="card-action" onclick="loadEventHistory()">Load</button>
+            <button class="card-action" style="color:var(--green-dark);border-color:var(--green);" onclick="exportEventHistory()">Export CSV</button>
+          </div>
+        </div>
+        <div id="event-history-container"><div class="sched-empty">Click Load to view event history.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EVENT REPORTING (Vistra-specific) -->
+<div class="tab-pane" id="tab-reporting">
+  <div class="scroll-content">
+    <div class="layout">
+      <div class="event-report-card">
+        <div class="er-header">
+          <div class="er-title">📋 DR Event Report</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="er-event-select" class="history-select" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:white;font-size:11px;">
+              <option value="">— Select Event —</option>
+            </select>
+            <button class="er-export-btn" onclick="exportEventReport()">Export PDF Report</button>
+          </div>
+        </div>
+        <div class="er-body">
+          <div class="er-grid" id="er-stats-row">
+            <div class="er-stat"><div class="er-stat-val" id="er-total">—</div><div class="er-stat-lbl">Devices Targeted</div></div>
+            <div class="er-stat"><div class="er-stat-val" id="er-received" style="color:var(--green-dark)">—</div><div class="er-stat-lbl">Event Received</div></div>
+            <div class="er-stat"><div class="er-stat-val" id="er-started" style="color:#166534">—</div><div class="er-stat-lbl">Started</div></div>
+            <div class="er-stat"><div class="er-stat-val" id="er-pct" style="color:var(--vistra)">—%</div><div class="er-stat-lbl">Participation Rate</div></div>
+          </div>
+          <div style="margin-bottom:10px;font-size:11px;color:var(--text-hint);" id="er-event-meta">Select an event above to generate the report.</div>
+          <div id="er-device-list"><div class="sched-empty">—</div></div>
+        </div>
+      </div>
+      <!-- Seasonal performance chart -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Seasonal Performance — Curtailment MW</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="er-chart-range">
+              <option value="720" selected>Last 30 days</option>
+              <option value="2160">Last 90 days</option>
+              <option value="8760">Last 12 months</option>
+            </select>
+            <button class="card-action" onclick="loadSeasonalChart()">Load</button>
+          </div>
+        </div>
+        <canvas id="er-seasonal-chart" height="160"></canvas>
+        <div id="er-seasonal-empty" style="text-align:center;padding:2rem;color:var(--text-hint);font-size:13px;display:none;">No event data in this range.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DEVICES -->
+<div class="tab-pane" id="tab-data">
+  <div class="scroll-content">
+    <div class="data-grid" id="data-grid"></div>
+  </div>
+</div>
+<div class="tab-pane" id="tab-controls">
+  <div class="scroll-content">
+    <div class="devices-grid" id="devices-grid"></div>
+  </div>
+</div>
+<div class="tab-pane" id="tab-history">
+  <div class="scroll-content">
+    <div class="history-panel">
+      <div class="history-header">
+        <div class="history-title">Device History</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select class="history-select" id="history-device-select"><option value="">All Devices</option></select>
+          <select class="history-select" id="history-range">
+            <option value="1">Last 1 hr</option>
+            <option value="6">Last 6 hrs</option>
+            <option value="24" selected>Last 24 hrs</option>
+            <option value="168">Last 7 days</option>
+            <option value="720">Last 30 days</option>
+          </select>
+          <button class="history-load-btn" onclick="loadHistory()">Load</button>
+          <button class="history-load-btn" style="color:var(--green-dark);border-color:var(--green);" onclick="exportHistory()">Export CSV</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Time</th><th>Device</th><th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>Voltage</th><th>Current</th><th>Watts</th><th>PF</th><th>Comfort</th></tr></thead>
+          <tbody id="history-body"><tr><td colspan="11" class="no-data">Select range and click Load</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tab-pane" id="tab-groups">
+  <div class="scroll-content">
+    <div id="groups-container"><div class="sched-empty">Loading groups…</div></div>
+  </div>
+</div>
+<div class="tab-pane" id="tab-settings">
+  <div class="scroll-content">
+    <div class="layout">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Bubble-Up Interval Control</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
+          <div style="background:var(--vistra-bg);border:0.5px solid var(--vistra);border-radius:var(--radius-sm);padding:0.75rem;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-hint);text-transform:uppercase;margin-bottom:4px;">Configured Interval</div>
+            <div id="global-configured-interval" style="font-size:20px;font-weight:700;color:var(--vistra-dark);">Loading…</div>
+          </div>
+          <div style="background:var(--green-bg);border:0.5px solid var(--green);border-radius:var(--radius-sm);padding:0.75rem;">
+            <div style="font-size:10px;font-weight:600;color:var(--text-hint);text-transform:uppercase;margin-bottom:4px;">Actual Interval</div>
+            <div id="global-actual-interval" style="font-size:20px;font-weight:700;color:var(--green-dark);">Loading…</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:var(--green-bg);border:0.5px solid var(--green);border-radius:var(--radius-sm);padding:1rem;">
+            <div style="font-size:13px;font-weight:600;color:var(--green-dark);margin-bottom:4px;">🟢 Event Mode</div>
+            <div style="font-size:11px;color:var(--green-dark);margin-bottom:10px;">Sets inbound &amp; outbound to <strong>5 min</strong> for rapid command delivery during DR events.</div>
+            <button class="sched-submit-btn" style="background:var(--green-dark);" onclick="setEventMode()">Activate Event Mode</button>
+          </div>
+          <div style="background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-sm);padding:1rem;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:4px;">⚙️ Normal Mode</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Reverts to scheduled intervals based on season and time of day.</div>
+            <button class="sched-submit-btn" onclick="setNormalMode()">Activate Normal Mode</button>
+          </div>
+        </div>
+        <div id="mode-status" style="font-size:11px;margin-top:1rem;padding:6px 10px;border-radius:var(--radius-sm);display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LORA TAB -->
+<div class="tab-pane" id="tab-lora">
+  <div class="scroll-content">
+    <div class="layout">
+      <!-- LoRa network overview -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+        <div class="stat-pill"><div class="stat-label">Gateways</div><div class="stat-value" id="lora-gw-count" style="color:var(--lora)">—</div><div class="stat-sub">Active</div></div>
+        <div class="stat-pill"><div class="stat-label">LoRa Devices</div><div class="stat-value" id="lora-dev-count" style="color:var(--lora)">—</div><div class="stat-sub">Registered</div></div>
+        <div class="stat-pill"><div class="stat-label">Avg RSSI</div><div class="stat-value" id="lora-avg-rssi">—</div><div class="stat-sub">dBm</div></div>
+        <div class="stat-pill"><div class="stat-label">Packets (24hr)</div><div class="stat-value" id="lora-packets">—</div><div class="stat-sub">Uplinks received</div></div>
+      </div>
+      <!-- Gateway status -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔗 LoRa Gateway Status</div>
+          <button class="card-action" onclick="refreshLoRa()">↻ Refresh</button>
+        </div>
+        <div id="lora-gw-list">
+          <div class="sched-empty">Loading gateway data…</div>
+        </div>
+      </div>
+      <!-- Device LoRa readings -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📶 Device LoRa Signal — Latest Readings</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="lora-device-filter"><option value="">All Devices</option></select>
+            <button class="card-action" onclick="refreshLoRaDevices()">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="lora-device-list">
+          <div class="sched-empty">Loading LoRa device data…</div>
+        </div>
+      </div>
+      <!-- LoRa message log -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📥 LoRa Message Log</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="lora-log-range">
+              <option value="1" selected>Last 1 hr</option>
+              <option value="6">Last 6 hrs</option>
+              <option value="24">Last 24 hrs</option>
+            </select>
+            <button class="card-action" onclick="loadLoRaLog()">Load</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr><th>Time</th><th>Device</th><th>Gateway</th><th>RSSI</th><th>SNR</th><th>SF</th><th>Freq</th><th>Payload</th></tr>
+            </thead>
+            <tbody id="lora-log-body">
+              <tr><td colspan="8" class="no-data">Click Load to view message log</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AMI TAB -->
+<div class="tab-pane" id="tab-ami">
+  <div class="scroll-content">
+    <div class="layout">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="stat-pill"><div class="stat-label">Active Meters</div><div class="stat-value" id="ami-meter-count" style="color:var(--ami)">—</div><div class="stat-sub">Linked to devices</div></div>
+        <div class="stat-pill"><div class="stat-label">Total kWh (24hr)</div><div class="stat-value" id="ami-total-kwh" style="color:var(--ami)">—</div><div class="stat-sub">Fleet total</div></div>
+        <div class="stat-pill"><div class="stat-label">Avg kW Demand</div><div class="stat-value" id="ami-avg-kw">—</div><div class="stat-sub">Current 15-min</div></div>
+      </div>
+      <!-- Meter configuration -->
+      <div class="card ami-widget">
+        <div class="card-header">
+          <div class="card-title">🔌 AMI Meter Configuration</div>
+          <div style="display:flex;gap:8px;">
+            <button class="card-action" onclick="showAddMeterForm()">+ Link Meter</button>
+            <button class="card-action" onclick="refreshAMI()">↻ Refresh</button>
+          </div>
+        </div>
+        <!-- Add meter form -->
+        <div id="add-meter-form" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;border:0.5px solid var(--border-md);">
+          <div style="font-size:12px;font-weight:600;margin-bottom:10px;">Link AMI Meter to Device</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div>
+              <label class="sched-label" style="display:block;margin-bottom:3px;">Meter ID / ESN</label>
+              <input type="text" id="new-meter-id" placeholder="e.g. 12345678901" class="sched-input" style="width:100%;" />
+            </div>
+            <div>
+              <label class="sched-label" style="display:block;margin-bottom:3px;">Link to Device</label>
+              <select id="new-meter-device" class="sched-select" style="width:100%;"></select>
+            </div>
+            <div>
+              <label class="sched-label" style="display:block;margin-bottom:3px;">Utility</label>
+              <input type="text" id="new-meter-utility" placeholder="e.g. Oncor Electric" class="sched-input" style="width:100%;" />
+            </div>
+            <div>
+              <label class="sched-label" style="display:block;margin-bottom:3px;">Rate Class</label>
+              <select id="new-meter-rate" class="sched-select" style="width:100%;">
+                <option value="residential">Residential</option>
+                <option value="small_commercial">Small Commercial</option>
+                <option value="large_commercial">Large Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="addAMIMeter()" style="padding:7px 16px;border-radius:var(--radius-sm);border:none;background:var(--ami);color:white;font-size:12px;font-weight:600;cursor:pointer;">Link Meter</button>
+            <button onclick="document.getElementById('add-meter-form').style.display='none'" style="padding:7px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:12px;cursor:pointer;">Cancel</button>
+          </div>
+          <div id="add-meter-error" style="margin-top:6px;font-size:11px;color:var(--red);display:none;"></div>
+        </div>
+        <div id="ami-meter-list"><div class="sched-empty">Loading meter data…</div></div>
+      </div>
+      <!-- Interval data chart -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📈 15-Minute Interval Data</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="ami-chart-meter"><option value="">All Meters</option></select>
+            <select class="history-select" id="ami-chart-range">
+              <option value="24" selected>Last 24 hrs</option>
+              <option value="48">Last 48 hrs</option>
+              <option value="168">Last 7 days</option>
+            </select>
+            <button class="card-action" onclick="loadAMIChart()">Load Chart</button>
+          </div>
+        </div>
+        <canvas id="ami-interval-chart" height="160"></canvas>
+        <div id="ami-chart-empty" style="text-align:center;padding:2rem;color:var(--text-hint);font-size:13px;display:none;">No interval data in range.</div>
+      </div>
+      <!-- DR Baseline vs Actual -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔄 Baseline vs. Actual — Event Curtailment</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="ami-baseline-event"><option value="">— Select Event —</option></select>
+            <button class="card-action" onclick="loadBaselineChart()">Load</button>
+          </div>
+        </div>
+        <canvas id="ami-baseline-chart" height="140"></canvas>
+        <div id="ami-baseline-empty" style="text-align:center;padding:2rem;color:var(--text-hint);font-size:13px;display:none;">Select an event to compare baseline vs. actual consumption.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIRTUAL PEAKER TAB -->
+<div class="tab-pane" id="tab-vp">
+  <div class="scroll-content">
+    <div class="layout">
+      <!-- Connection status -->
+      <div class="card vp-widget" id="vp-connection-card">
+        <div class="card-header">
+          <div class="card-title">⚙️ Virtual Peaker Integration</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div id="vp-connection-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-hint);"></div>
+            <span id="vp-connection-label" style="font-size:11px;color:var(--text-hint);">Not Connected</span>
+            <button class="vp-sync-btn" onclick="testVPConnection()">Test Connection</button>
+          </div>
+        </div>
+        <!-- Config -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
+          <div>
+            <label class="sched-label" style="display:block;margin-bottom:3px;">Virtual Peaker API Key</label>
+            <input type="password" id="vp-api-key" placeholder="vp_live_••••••••••••••••"
+              style="width:100%;padding:7px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;font-family:monospace;" />
+          </div>
+          <div>
+            <label class="sched-label" style="display:block;margin-bottom:3px;">Program / Portfolio ID</label>
+            <input type="text" id="vp-program-id" placeholder="e.g. VISTRA_ERCOT_2025"
+              style="width:100%;padding:7px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;" />
+          </div>
+          <div>
+            <label class="sched-label" style="display:block;margin-bottom:3px;">Utility Market</label>
+            <select id="vp-market" class="sched-select" style="width:100%;">
+              <option value="ERCOT">ERCOT (Texas)</option>
+              <option value="PJM">PJM (Mid-Atlantic)</option>
+              <option value="MISO">MISO (Midwest)</option>
+              <option value="CAISO">CAISO (California)</option>
+              <option value="SPP">SPP (Southwest)</option>
+            </select>
+          </div>
+          <div>
+            <label class="sched-label" style="display:block;margin-bottom:3px;">Curtailment Target (kW)</label>
+            <input type="number" id="vp-target-kw" placeholder="e.g. 500"
+              style="width:100%;padding:7px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:13px;" />
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveVPConfig()" style="padding:8px 18px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:13px;font-weight:600;cursor:pointer;">Save Configuration</button>
+          <button onclick="syncVirtualPeaker()" class="vp-sync-btn">↻ Sync Now</button>
+        </div>
+        <div id="vp-config-status" style="margin-top:8px;font-size:11px;display:none;"></div>
+      </div>
+      <!-- VP Dispatch events -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📅 VP Dispatch Events</div>
+          <div style="display:flex;gap:8px;">
+            <select class="history-select" id="vp-event-range">
+              <option value="future" selected>Upcoming</option>
+              <option value="24">Last 24 hrs</option>
+              <option value="168">Last 7 days</option>
+            </select>
+            <button class="card-action" onclick="loadVPEvents()">Refresh</button>
+          </div>
+        </div>
+        <div id="vp-events-list"><div class="sched-empty">Loading VP dispatch events…</div></div>
+      </div>
+      <!-- Performance metrics -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📊 VP Performance Metrics</div>
+          <button class="card-action" onclick="loadVPMetrics()">Load Metrics</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1rem;">
+          <div class="er-stat"><div class="er-stat-val" id="vp-m-events">—</div><div class="er-stat-lbl">Events Completed</div></div>
+          <div class="er-stat"><div class="er-stat-val" id="vp-m-kwh" style="color:var(--vp-dark)">—</div><div class="er-stat-lbl">kWh Curtailed</div></div>
+          <div class="er-stat"><div class="er-stat-val" id="vp-m-pct" style="color:var(--green-dark)">—%</div><div class="er-stat-lbl">Avg Performance</div></div>
+          <div class="er-stat"><div class="er-stat-val" id="vp-m-revenue" style="color:var(--vistra)">$—</div><div class="er-stat-lbl">Estimated Revenue</div></div>
+        </div>
+        <canvas id="vp-performance-chart" height="140"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="tab-pane" id="tab-map">
+  <div class="scroll-content">
+    <div class="map-container">
+      <div class="map-toolbar">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);">Fleet Locations</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;font-size:11px;color:var(--text-secondary);">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;"></span>Cellular</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--lora);display:inline-block;"></span>LoRa</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-hint);display:inline-block;"></span>Offline</span>
+          </div>
+          <button class="card-action" onclick="loadMap()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="tab-pane" id="tab-admin">
+  <div class="scroll-content">
+    <div class="layout">
+      <div class="card" style="padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:11px;color:var(--text-hint);">Signed in as</div>
+          <div id="admin-current-user" style="font-size:14px;font-weight:600;">—</div>
+          <div id="admin-current-role" style="font-size:11px;color:var(--text-secondary);margin-top:2px;"></div>
+        </div>
+        <button onclick="signOut()" style="padding:7px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:12px;cursor:pointer;">Sign Out</button>
+      </div>
+      <!-- User Management -->
+      <div class="card" id="admin-user-mgmt">
+        <div class="card-header"><div class="card-title">User Management</div><button class="card-action" onclick="showAddUserForm()">+ Add User</button></div>
+        <div id="add-user-form" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;border:0.5px solid var(--border-md);">
+          <div style="font-size:12px;font-weight:600;margin-bottom:10px;">New User</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Full Name</label><input type="text" id="new-user-name" class="sched-input" style="width:100%;" placeholder="Jane Smith" /></div>
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Email</label><input type="email" id="new-user-email" class="sched-input" style="width:100%;" placeholder="jane@vistra.com" /></div>
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Temp Password</label><input type="text" id="new-user-password" class="sched-input" style="width:100%;" placeholder="Min 8 chars" /></div>
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Role</label>
+              <select id="new-user-role" class="sched-select" style="width:100%;">
+                <option value="readonly">Read Only</option>
+                <option value="operator">Operator</option>
+                <option value="administrator">Administrator</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="createUser()" style="padding:7px 16px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:12px;font-weight:600;cursor:pointer;">Create User</button>
+            <button onclick="document.getElementById('add-user-form').style.display='none'" style="padding:7px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:12px;cursor:pointer;">Cancel</button>
+          </div>
+          <div id="add-user-error" style="margin-top:6px;font-size:11px;color:var(--red);display:none;"></div>
+        </div>
+        <div id="users-table-container"><div class="sched-empty">Loading users…</div></div>
+      </div>
+      <!-- Device Management -->
+      <div class="card" id="admin-device-mgmt">
+        <div class="card-header"><div class="card-title">📡 Device Management</div><button class="card-action" onclick="showAddDeviceForm()">+ Add Device</button></div>
+        <div id="add-device-form" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;border:0.5px solid var(--border-md);">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Device UID</label><input type="text" id="new-device-uid" placeholder="dev:000000000000" class="sched-input" style="width:100%;font-family:monospace;" /></div>
+            <div><label class="sched-label" style="display:block;margin-bottom:3px;">Display Name</label><input type="text" id="new-device-name" placeholder="Site name" class="sched-input" style="width:100%;" /></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="createDevice()" style="padding:7px 16px;border-radius:var(--radius-sm);border:none;background:var(--vistra);color:white;font-size:12px;font-weight:600;cursor:pointer;">Add Device</button>
+            <button onclick="document.getElementById('add-device-form').style.display='none'" style="padding:7px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:12px;cursor:pointer;">Cancel</button>
+          </div>
+          <div id="add-device-error" style="margin-top:6px;font-size:11px;color:var(--red);display:none;"></div>
+        </div>
+        <div id="devices-table-container"><div class="sched-empty">Loading devices…</div></div>
+      </div>
+      <!-- My Account -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">My Account</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div><label class="sched-label" style="display:block;margin-bottom:3px;">New Password</label><input type="password" id="my-new-password" class="sched-input" style="width:100%;" placeholder="Min 8 chars" /></div>
+          <div><label class="sched-label" style="display:block;margin-bottom:3px;">Confirm Password</label><input type="password" id="my-confirm-password" class="sched-input" style="width:100%;" placeholder="Repeat" /></div>
+        </div>
+        <button onclick="changeMyPassword()" style="margin-top:10px;padding:7px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:var(--surface2);font-size:12px;cursor:pointer;">Update Password</button>
+        <div id="my-pw-status" style="margin-top:6px;font-size:11px;display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ JAVASCRIPT ══════════ -->
+<script>
+// ── Config (replace with your values) ─────────────────────────────────────────
+const SUPABASE_URL  = "https://YOUR_SUPABASE_PROJECT.supabase.co";
+const SUPABASE_KEY  = "YOUR_SUPABASE_ANON_KEY";
+const PROXY_URL     = "https://YOUR_WORKER.workers.dev/";
+const VP_PROXY_URL  = "https://YOUR_VP_PROXY.workers.dev/vp/";   // Cloudflare worker that proxies Virtual Peaker API
+const LORA_NS_URL   = "https://YOUR_LORAWAN_NS.example.com/api"; // ChirpStack or TTN API base
+const LORA_NS_KEY   = "YOUR_LORAWAN_API_KEY";
+
+function unitName(uid) { return "Unit " + uid.slice(-4); }
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let DEVICES         = [];
+let relayState      = {};
+let groupNames      = { 1:"Group 1", 2:"Group 2", 3:"Group 3" };
+let groupAssignments= {};
+let busy            = false;
+let map, mapInitialized = false;
+const mapMarkers    = {};
+let summaryTimer    = null;
+let vpConfig        = { apiKey: "", programId: "", market: "ERCOT", targetKw: 0 };
+let amiMeters       = [];
+let loraGateways    = [];
+let loraDeviceMap   = {}; // uid -> { rssi, snr, gw }
+
+let currentUser     = null;
+let currentUserRole = null;
+let currentSession  = null;
+
+const ROLE_LABELS = { administrator:"Administrator", operator:"Operator", readonly:"Read Only" };
+
+const COMMANDS = {
+  "1_on":    {"body":{"LC":"A10B000001810001000000002B"},"req":"note.add","sync":true},
+  "1_off":   {"body":{"LC":"A10B00003D8100010000000017"},"req":"note.add","sync":true},
+  "2_on":    {"body":{"LC":"A10B000001820002000000002B"},"req":"note.add","sync":true},
+  "2_off":   {"body":{"LC":"A10B00003D8200020000000017"},"req":"note.add","sync":true},
+  "3_on":    {"body":{"LC":"A10B000001840003000000002C"},"req":"note.add","sync":true},
+  "3_off":   {"body":{"LC":"A10B00003D8400030000000010"},"req":"note.add","sync":true},
+  "4_on":    {"body":{"LC":"A10B0000018800040000000027"},"req":"note.add","sync":true},
+  "4_off":   {"body":{"LC":"A10B00003D8800040000000010"},"req":"note.add","sync":true},
+  "all_on":  {"body":{"LC":"A10B0000018F000F000000002B"},"req":"note.add","sync":true},
+  "all_off": {"body":{"LC":"A10B00003D8F000F0000000017"},"req":"note.add","sync":true},
+};
+
+// ── Supabase helpers ──────────────────────────────────────────────────────────
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function supabaseGet(q) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${q}`, {
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${currentSession?.access_token || SUPABASE_KEY}` }
+  });
+  return res.json();
+}
+async function supabasePost(table, data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${currentSession?.access_token || SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+    body: JSON.stringify(data)
+  });
+  return res;
+}
+async function supabaseUpsert(table, data, onConflict) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${currentSession?.access_token || SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(data)
+  });
+}
+async function supabaseDelete(table, filter) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+    method: "DELETE",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${currentSession?.access_token || SUPABASE_KEY}` }
+  });
+}
+async function supabasePatch(path, data) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method: "PATCH",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${currentSession?.access_token || SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+    body: JSON.stringify(data)
+  });
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  document.getElementById("dot").className = "dot " + type;
+  document.getElementById("status-text").textContent = msg;
+}
+
+// ── Tab routing ───────────────────────────────────────────────────────────────
+let currentMain = "summary";
+let currentSub  = { events: "scheduler", devices: "data" };
+
+function switchMain(main, btn) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  currentMain = main;
+  document.getElementById("sub-tabs-events").style.display  = main === "events"  ? "flex" : "none";
+  document.getElementById("sub-tabs-devices").style.display = main === "devices" ? "flex" : "none";
+
+  const paneMap = {
+    summary: "summary", events: currentSub.events || "scheduler",
+    devices: currentSub.devices || "data", lora: "lora", ami: "ami",
+    vp: "vp", map: "map", admin: "admin"
+  };
+  activatePane(paneMap[main] || main);
+  if (main === "events")  activateSubBtn("events",  currentSub.events || "scheduler");
+  if (main === "devices") activateSubBtn("devices", currentSub.devices || "data");
+}
+
+function switchSub(main, sub, btn) {
+  currentSub[main] = sub;
+  document.getElementById("sub-tabs-"+main).querySelectorAll(".sub-tab-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  activatePane(sub);
+}
+
+function activatePane(name) {
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  const el = document.getElementById("tab-" + name);
+  if (el) el.classList.add("active");
+  runTabInit(name);
+}
+
+function activateSubBtn(main, sub) {
+  const bar = document.getElementById("sub-tabs-" + main);
+  if (!bar) return;
+  bar.querySelectorAll(".sub-tab-btn").forEach(b => b.classList.remove("active"));
+  const btn = document.getElementById("sub-" + sub);
+  if (btn) btn.classList.add("active");
+}
+
+function runTabInit(name) {
+  if (name === "summary")    { loadProgramSummary(); startSummaryAutoRefresh(); }
+  if (name === "scheduler")  { stopSummaryAutoRefresh(); loadSchedules(); loadDeviceEvents(); }
+  if (name === "eventstats") { stopSummaryAutoRefresh(); initEventStats(); }
+  if (name === "reporting")  { stopSummaryAutoRefresh(); initEventReporting(); }
+  if (name === "data")       { stopSummaryAutoRefresh(); loadLatest(); }
+  if (name === "controls")   { stopSummaryAutoRefresh(); }
+  if (name === "history")    { stopSummaryAutoRefresh(); }
+  if (name === "groups")     { stopSummaryAutoRefresh(); loadGroups(); }
+  if (name === "settings")   { stopSummaryAutoRefresh(); refreshBubbleStatus(); }
+  if (name === "lora")       { stopSummaryAutoRefresh(); refreshLoRa(); refreshLoRaDevices(); }
+  if (name === "ami")        { stopSummaryAutoRefresh(); refreshAMI(); }
+  if (name === "vp")         { stopSummaryAutoRefresh(); loadVPConfig(); loadVPEvents(); loadVPMetrics(); }
+  if (name === "map")        { stopSummaryAutoRefresh(); loadMap(); }
+  if (name === "admin")      { stopSummaryAutoRefresh(); updateAdminHeader(); loadUsersTable(); loadDevicesTable(); }
+}
+
+function startSummaryAutoRefresh() {
+  stopSummaryAutoRefresh();
+  summaryTimer = setInterval(() => { loadProgramSummary(); refreshAMI(); }, 15000);
+}
+function stopSummaryAutoRefresh() {
+  if (summaryTimer) { clearInterval(summaryTimer); summaryTimer = null; }
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function initAuth() {
+  showLoginOverlay();
+  await supabaseClient.auth.signOut();
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_IN" && session) await onSignedIn(session);
+    else if (event === "SIGNED_OUT") { currentUser = null; currentUserRole = null; showLoginOverlay(); }
+    else if (event === "PASSWORD_RECOVERY") showStep(3);
+    else if (event === "TOKEN_REFRESHED" && session) currentSession = session;
+  });
+}
+
+async function onSignedIn(session) {
+  currentSession = session;
+  currentUser    = session.user;
+  const { data: profile } = await supabaseClient.from("user_profiles").select("*").eq("id", currentUser.id).single();
+  currentUserRole = profile?.role || "readonly";
+  await supabaseClient.from("user_profiles").update({ last_login: new Date().toISOString() }).eq("id", currentUser.id);
+  await loadDevicesFromDB();
+  buildControls();
+  buildDataCards();
+  hideLoginOverlay();
+  applyRolePermissions(currentUserRole);
+  updateAdminHeader();
+  const pillEl = document.getElementById("current-user-pill");
+  const emailEl = document.getElementById("current-user-email");
+  if (pillEl) pillEl.style.display = "inline-flex";
+  if (emailEl) emailEl.textContent = currentUser.email;
+  // Kick off initial data loads
+  loadProgramSummary();
+  startSummaryAutoRefresh();
+  loadVPConfig();
+  refreshAMI();
+  loadEventsBar();
+}
+
+async function loadDevicesFromDB() {
+  try {
+    const rows = await supabaseGet("devices?enabled=eq.true&order=created_at.asc");
+    if (!Array.isArray(rows) || !rows.length) return;
+    DEVICES = rows.map((d, i) => ({ id: `device${i}`, uid: d.uid, name: d.name || unitName(d.uid) }));
+    DEVICES.forEach(d => { relayState[d.id] = { 1:false,2:false,3:false,4:false,all:false }; });
+    populateDeviceSelects();
+  } catch(e) { console.error("[Vistra] loadDevicesFromDB failed:", e.message); }
+}
+
+function populateDeviceSelects() {
+  ["history-device-select","lora-device-filter","new-meter-device","ami-chart-meter","sf-target"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const firstOpt = el.querySelector("option");
+    el.innerHTML = "";
+    if (firstOpt) el.appendChild(firstOpt.cloneNode(true));
+    if (id === "new-meter-device" || (id === "sf-target" && document.getElementById("sf-target-type")?.value === "device")) {
+      DEVICES.forEach(d => { const o = document.createElement("option"); o.value = d.uid; o.textContent = d.name; el.appendChild(o); });
+    } else if (id !== "sf-target") {
+      DEVICES.forEach(d => { const o = document.createElement("option"); o.value = d.uid; o.textContent = d.name; el.appendChild(o); });
+    }
+  });
+}
+
+function showLoginOverlay() { document.getElementById("login-overlay").style.display = "flex"; showStep(1); }
+function hideLoginOverlay() { document.getElementById("login-overlay").style.display = "none"; }
+function showStep(n) {
+  [1,2,3].forEach(i => { const el = document.getElementById(`login-step-${i}`); if (el) el.style.display = i===n?"block":"none"; });
+}
+
+async function loginSubmit() {
+  const email    = document.getElementById("login-email")?.value?.trim();
+  const password = document.getElementById("login-password")?.value;
+  const btn      = document.getElementById("login-btn");
+  const errEl    = document.getElementById("login-error");
+  if (!email || !password) { errEl.textContent="Enter email and password."; errEl.style.display="block"; return; }
+  btn.textContent = "Signing in…"; btn.disabled = true; errEl.style.display = "none";
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  btn.textContent = "Sign In"; btn.disabled = false;
+  if (error) { errEl.textContent = error.message || "Invalid credentials."; errEl.style.display = "block"; }
+}
+
+async function sendOtp() {
+  const email = document.getElementById("otp-email")?.value?.trim();
+  const errEl = document.getElementById("otp-error");
+  if (!email) { errEl.textContent="Enter your email."; errEl.style.display="block"; return; }
+  errEl.style.display="none";
+  const { error } = await supabaseClient.auth.signInWithOtp({ email });
+  if (error) { errEl.textContent = error.message; errEl.style.display="block"; return; }
+  document.getElementById("login-email-display").textContent = email;
+  document.getElementById("login-otp").style.display = "block";
+  document.getElementById("otp-verify-btn").style.display = "block";
+}
+
+async function otpSubmit() {
+  const email = document.getElementById("otp-email")?.value?.trim();
+  const token = document.getElementById("login-otp")?.value?.trim();
+  const errEl = document.getElementById("otp-error");
+  if (!token) { errEl.textContent="Enter the code."; errEl.style.display="block"; return; }
+  const { error } = await supabaseClient.auth.verifyOtp({ email, token, type: "email" });
+  if (error) { errEl.textContent = error.message; errEl.style.display="block"; }
+}
+
+async function changePasswordSubmit() {
+  const pw  = document.getElementById("new-password")?.value;
+  const pw2 = document.getElementById("confirm-password")?.value;
+  const errEl = document.getElementById("pw-error");
+  if (!pw || pw.length < 8) { errEl.textContent="Password must be at least 8 characters."; errEl.style.display="block"; return; }
+  if (pw !== pw2) { errEl.textContent="Passwords do not match."; errEl.style.display="block"; return; }
+  const { error } = await supabaseClient.auth.updateUser({ password: pw });
+  if (error) { errEl.textContent = error.message; errEl.style.display="block"; }
+  else { alert("✅ Password set! Signing you in…"); }
+}
+
+async function signOut() {
+  stopSummaryAutoRefresh();
+  await supabaseClient.auth.signOut();
+}
+
+function applyRolePermissions(role) {
+  const adminBtn = document.getElementById("main-admin");
+  if (adminBtn) adminBtn.style.display = role === "administrator" ? "" : "none";
+}
+
+// ── Program Summary ───────────────────────────────────────────────────────────
+async function loadProgramSummary() {
+  try {
+    const now      = new Date();
+    const oneHrAgo = new Date(now - 60*60*1000).toISOString();
+    const oneDayAgo= new Date(now - 24*60*60*1000).toISOString();
+    const tbody    = document.getElementById("summary-device-tbody");
+
+    const [readings, queueRows] = await Promise.all([
+      supabaseGet(`device_readings?order=recorded_at.desc&limit=${DEVICES.length * 3}`),
+      supabaseGet(`schedule_queue?status=not.eq.cancelled&fire_at=gte.${oneDayAgo}&order=fire_at.desc&limit=50`)
+    ]);
+
+    let online=0, offline=0;
+
+    const rows = DEVICES.map(d => {
+      const r  = Array.isArray(readings) ? readings.find(x => x.device_uid === d.uid) : null;
+      const isOnline = r && new Date(r.recorded_at) > new Date(now - 60*60*1000);
+      if (isOnline) online++; else offline++;
+
+      // Active event
+      const activeQ = Array.isArray(queueRows) ? queueRows.find(q => {
+        if (q.target_id !== d.uid && q.target_type === "device") return false;
+        const fireAt = new Date(q.fire_at);
+        const endAt  = new Date(fireAt.getTime() + (q.duration_minutes||240)*60*1000);
+        return fireAt <= now && endAt > now;
+      }) : null;
+
+      const loraInfo = loraDeviceMap[d.uid];
+      const connType = loraInfo ? `<span class="lora-badge">LoRa</span>` : (isOnline ? `<span style="font-size:10px;background:var(--vistra-bg);color:var(--vistra);border:0.5px solid var(--vistra);border-radius:8px;padding:1px 7px;font-weight:600;">Cell</span>` : "");
+
+      const statusDot = `<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:${isOnline?"var(--green)":"var(--text-hint)"};display:inline-block;"></span>${isOnline?"Online":"Offline"}</span>`;
+      const lastRpt   = r ? new Date(r.recorded_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}) : "—";
+      const evtPill   = activeQ ? `<span class="er-pill started">🟢 Active</span>` : `<span class="er-pill no-event">—</span>`;
+      const relayStr  = r ? `R1:${r.relay_status_r1>0?"ON":"OFF"} R2:${r.relay_status_r2>0?"ON":"OFF"}` : "—";
+      const rssiStr   = loraInfo ? `${loraInfo.rssi} dBm` : (r?.sw_value ? r.sw_value : "—");
+
+      return `<tr>
+        <td style="font-weight:500;">${d.name}<br><span style="font-family:monospace;font-size:9px;color:var(--text-hint);">${d.uid.slice(-8)}</span></td>
+        <td>${connType}</td>
+        <td>${statusDot}</td>
+        <td>${lastRpt}</td>
+        <td>${evtPill}</td>
+        <td style="font-family:monospace;font-size:11px;">${relayStr}</td>
+        <td>${rssiStr}</td>
+        <td>${loraInfo ? `<div class="rssi-bar" style="width:${Math.max(5,Math.min(100,((loraInfo.rssi+120)/70)*100)).toFixed(0)}%;max-width:60px;display:inline-block;"></div>` : "—"}</td>
+      </tr>`;
+    });
+
+    document.getElementById("stat-enrolled").textContent  = DEVICES.length;
+    document.getElementById("stat-online").textContent    = online;
+    document.getElementById("stat-offline").textContent   = offline;
+    if (tbody) tbody.innerHTML = rows.join("") || `<tr><td colspan="8" class="no-data">No devices loaded.</td></tr>`;
+    document.getElementById("last-refresh-time").textContent = "Updated " + now.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  } catch(e) { console.error("[Summary]", e); }
+}
+
+// ── Events bar ────────────────────────────────────────────────────────────────
+async function loadEventsBar() {
+  try {
+    const now  = new Date();
+    const ago  = new Date(now - 24*60*60*1000).toISOString();
+    const rows = await supabaseGet(`schedule_queue?status=not.eq.cancelled&fire_at=gte.${ago}&order=fire_at.asc&limit=10`);
+    const bar  = document.getElementById("events-bar");
+    if (!bar) return;
+    const active = Array.isArray(rows) ? rows.filter(q => {
+      const f = new Date(q.fire_at), e = new Date(f.getTime()+(q.duration_minutes||0)*60000);
+      return f <= now && e > now;
+    }) : [];
+    if (active.length === 0) { bar.innerHTML = `<span class="events-bar-label">Active Events:</span><span style="color:var(--text-hint);font-size:11px;">None</span>`; return; }
+    bar.innerHTML = `<span class="events-bar-label">Active Events:</span>` +
+      active.map(q => `<span style="font-size:11px;background:var(--green-bg);color:var(--green-dark);border:0.5px solid var(--green);border-radius:8px;padding:2px 9px;font-weight:600;">🟢 ${q.name||q.target_name||"Event"}</span>`).join(" ");
+  } catch(e) {}
+}
+
+// ── Event Scheduler ───────────────────────────────────────────────────────────
+function onTargetTypeChange() {
+  const type = document.getElementById("sf-target-type").value;
+  const sel  = document.getElementById("sf-target");
+  sel.innerHTML = "";
+  if (type === "group") {
+    Object.entries(groupNames).forEach(([num,name]) => {
+      const o = document.createElement("option"); o.value = `group-${num}`; o.textContent = name; sel.appendChild(o);
+    });
+  } else {
+    DEVICES.forEach(d => { const o = document.createElement("option"); o.value = d.uid; o.textContent = d.name; sel.appendChild(o); });
+  }
+}
+function onStrategyChange() {}
+function updateSchedulerTimezone() {}
+
+async function getNextEventName() {
+  try {
+    const rows = await supabaseGet("schedules?select=name&order=id.desc&limit=1");
+    const last = rows?.[0]?.name || "";
+    const m = last.match(/Event (\d+)/i);
+    return m ? `Event ${parseInt(m[1])+1}` : "Event 1";
+  } catch(e) { return "Event 1"; }
+}
+
+async function createSchedule() {
+  const name     = document.getElementById("sf-name")?.value?.trim() || await getNextEventName();
+  const type     = document.getElementById("sf-target-type")?.value;
+  const target   = document.getElementById("sf-target")?.value;
+  const action   = document.getElementById("sf-action")?.value;
+  const mode     = document.getElementById("sf-mode")?.value;
+  const strategy = document.getElementById("sf-strategy")?.value;
+  const hour     = document.getElementById("sf-hour")?.value;
+  const minute   = document.getElementById("sf-minute")?.value;
+  const date     = document.getElementById("sf-date")?.value;
+  const duration = document.getElementById("sf-duration")?.value;
+  const tz       = document.getElementById("sf-timezone")?.value || "America/Chicago";
+  const pushVP   = document.getElementById("sf-push-vp")?.checked;
+
+  if (!type||!target||!action||!mode||!strategy||!hour||!minute||!date||!duration) {
+    alert("Please fill in all fields."); return;
+  }
+  const [lc_timeout, lc_on, lc_period] = strategy.split("|").map(Number);
+  const fireAt   = new Date(`${date}T${hour}:${minute}:00`);
+  const targetId = type === "group" ? target.replace("group-","") : target;
+
+  await supabasePost("schedules", {
+    name, target_type: type, target_id: targetId, relay_action: action,
+    control_mode: mode, lc_strategy: lc_timeout, lc_on_minutes: lc_on,
+    lc_period_minutes: lc_period, fire_at: fireAt.toISOString(),
+    duration_minutes: parseInt(duration), timezone: tz, push_to_vp: pushVP
+  });
+
+  if (pushVP) { notifyVirtualPeaker({ name, fireAt, duration, target }); }
+  setStatus("ready", `✅ ${name} scheduled.`);
+  document.getElementById("sf-name").value = "";
+  await loadSchedules();
+}
+
+async function loadSchedules() {
+  const container = document.getElementById("sched-list");
+  const range     = document.getElementById("sched-range")?.value;
+  if (!container) return;
+  container.innerHTML = `<div class="sched-empty">Loading…</div>`;
+  try {
+    let q = "schedules?order=fire_at.asc&limit=50";
+    if (range === "future") {
+      q += `&fire_at=gte.${new Date(Date.now()-60000).toISOString()}`;
+    } else if (range) {
+      q += `&fire_at=gte.${new Date(Date.now()-parseInt(range)*3600000).toISOString()}`;
+    }
+    const rows = await supabaseGet(q);
+    if (!rows?.length) { container.innerHTML = `<div class="sched-empty">No scheduled events.</div>`; return; }
+    container.innerHTML = rows.map(s => {
+      const fireAt  = new Date(s.fire_at);
+      const endAt   = new Date(fireAt.getTime() + (s.duration_minutes||0)*60000);
+      const now     = new Date();
+      const active  = fireAt <= now && endAt > now;
+      const past    = endAt < now;
+      const color   = active ? "var(--green)" : past ? "var(--text-hint)" : "var(--vistra)";
+      return `<div class="queue-item ${active?"started":past?"ended":"pending"}" style="margin-bottom:8px;">
+        <div class="queue-info">
+          <div class="queue-name">${s.name || "—"}</div>
+          <div class="queue-detail">
+            ${fireAt.toLocaleString()} — ${s.duration_minutes} min &bull;
+            ${s.relay_action?.replace(/_/g," ")||"—"} &bull;
+            ${s.control_mode?.toUpperCase()||"—"} &bull;
+            ${s.push_to_vp ? "🔗 VP" : ""}
+          </div>
+        </div>
+        <span class="queue-status ${active?"started":past?"ended":"pending"}" style="color:${color}">
+          ${active?"Active":past?"Ended":"Scheduled"}
+        </span>
+        ${!past ? `<button class="queue-cancel-btn" onclick="cancelSchedule(${s.id})">Cancel</button>` : ""}
+      </div>`;
+    }).join("");
+  } catch(e) { container.innerHTML = `<div class="sched-empty" style="color:var(--red);">Error loading schedules.</div>`; }
+}
+
+async function cancelSchedule(id) {
+  if (!confirm("Cancel this event?")) return;
+  await supabasePatch(`schedules?id=eq.${id}`, { status: "cancelled" });
+  await loadSchedules();
+}
+
+async function loadDeviceEvents() {
+  const container = document.getElementById("device-events-list");
+  const range     = document.getElementById("device-events-range")?.value;
+  if (!container) return;
+  container.innerHTML = `<div class="sched-empty">Loading…</div>`;
+  try {
+    let q = "schedule_queue?order=fire_at.desc&limit=100";
+    if (range) q += `&fire_at=gte.${new Date(Date.now()-parseInt(range)*3600000).toISOString()}`;
+    const rows = await supabaseGet(q);
+    if (!rows?.length) { container.innerHTML = `<div class="sched-empty">No events found.</div>`; return; }
+    container.innerHTML = rows.map(q2 => {
+      const status = q2.status || "pending";
+      const devName = DEVICES.find(d => d.uid === q2.target_id)?.name || q2.target_name || unitName(q2.target_id||"");
+      return `<div class="queue-item ${status}" style="margin-bottom:8px;">
+        <div class="queue-info">
+          <div class="queue-name">${q2.name||devName||"—"} &bull; ${devName}</div>
+          <div class="queue-detail">${new Date(q2.fire_at).toLocaleString()} &bull; ${q2.duration_minutes||"?"} min &bull; ${q2.relay_action||"—"}</div>
+        </div>
+        <span class="queue-status ${status}">${status}</span>
+        ${["pending","fired","sent"].includes(status)?`<button class="queue-cancel-btn" onclick="cancelQueueItem(${q2.id})">Cancel</button>`:""}
+      </div>`;
+    }).join("");
+  } catch(e) { container.innerHTML = `<div class="sched-empty" style="color:var(--red);">Error loading events.</div>`; }
+}
+
+async function cancelQueueItem(id) {
+  if (!confirm("Cancel this queued event?")) return;
+  await supabasePatch(`schedule_queue?id=eq.${id}`, { status: "cancelled" });
+  await loadDeviceEvents();
+}
+
+async function cancelAllEvents() {
+  if (!confirm("Cancel ALL pending and active events?")) return;
+  await supabasePatch("schedule_queue?status=in.(pending,fired,sent)", { status: "cancelled" });
+  await loadDeviceEvents();
+  loadEventsBar();
+}
+
+// ── Event Statistics ──────────────────────────────────────────────────────────
+async function initEventStats() {
+  try {
+    const rows = await supabaseGet("schedules?order=fire_at.desc&limit=200");
+    if (!Array.isArray(rows)) return;
+    document.getElementById("stats-total-events").textContent = rows.length;
+    const totalHrs = rows.reduce((s,r) => s + (r.duration_minutes||0)/60, 0);
+    document.getElementById("stats-total-hours").textContent = totalHrs.toFixed(1);
+    document.getElementById("stats-avg-participation").textContent = "—";
+    // Populate event selector
+    const sel = document.getElementById("participation-event-select");
+    sel.innerHTML = `<option value="">— Select Event —</option>`;
+    const erSel = document.getElementById("er-event-select");
+    if (erSel) erSel.innerHTML = `<option value="">— Select Event —</option>`;
+    const baselineSel = document.getElementById("ami-baseline-event");
+    if (baselineSel) baselineSel.innerHTML = `<option value="">— Select Event —</option>`;
+    rows.forEach(r => {
+      [sel, erSel, baselineSel].forEach(s => {
+        if (!s) return;
+        const o = document.createElement("option");
+        o.value = r.id;
+        o.textContent = `${r.name||"Event"} — ${new Date(r.fire_at).toLocaleDateString()}`;
+        s.appendChild(o);
+      });
+    });
+  } catch(e) {}
+}
+
+async function loadParticipation() {
+  const eventId  = document.getElementById("participation-event-select")?.value;
+  const container= document.getElementById("participation-results");
+  if (!eventId || !container) return;
+  container.innerHTML = `<div class="sched-empty">Loading…</div>`;
+  try {
+    const rows = await supabaseGet(`schedule_queue?schedule_id=eq.${eventId}&order=updated_at.asc`);
+    if (!rows?.length) { container.innerHTML = `<div class="sched-empty">No device records for this event.</div>`; return; }
+    const received = rows.filter(r => ["received","started","ended"].includes(r.status)).length;
+    const pct = rows.length ? Math.round(received/rows.length*100) : 0;
+    container.innerHTML = `
+      <div style="display:flex;gap:12px;margin-bottom:1rem;flex-wrap:wrap;">
+        <div class="er-stat"><div class="er-stat-val">${rows.length}</div><div class="er-stat-lbl">Targeted</div></div>
+        <div class="er-stat"><div class="er-stat-val" style="color:var(--green-dark)">${received}</div><div class="er-stat-lbl">Responded</div></div>
+        <div class="er-stat"><div class="er-stat-val" style="color:var(--vistra)">${pct}%</div><div class="er-stat-lbl">Participation</div></div>
+      </div>
+      ${rows.map(r => {
+        const d = DEVICES.find(d2 => d2.uid === r.target_id);
+        return `<div class="er-device-row">
+          <span class="er-device-name">${d?.name || r.target_name || unitName(r.target_id||"")}</span>
+          <span class="er-pill ${r.status||"no-event"}">${r.status||"No event"}</span>
+          <span style="font-size:11px;color:var(--text-hint);margin-left:8px;">${r.updated_at?new Date(r.updated_at).toLocaleTimeString():"—"}</span>
+        </div>`;
+      }).join("")}`;
+  } catch(e) { container.innerHTML = `<div class="sched-empty" style="color:var(--red);">Error loading participation data.</div>`; }
+}
+
+async function loadEventHistory() {
+  const range     = document.getElementById("stats-range")?.value;
+  const container = document.getElementById("event-history-container");
+  if (!container) return;
+  container.innerHTML = `<div class="sched-empty">Loading…</div>`;
+  try {
+    let q = "schedules?order=fire_at.desc&limit=100";
+    if (range) q += `&fire_at=gte.${new Date(Date.now()-parseInt(range)*3600000).toISOString()}`;
+    const rows = await supabaseGet(q);
+    if (!rows?.length) { container.innerHTML = `<div class="sched-empty">No events in range.</div>`; return; }
+    container.innerHTML = `<div style="overflow-x:auto;"><table>
+      <thead><tr><th>Event</th><th>Date</th><th>Target</th><th>Mode</th><th>Duration</th><th>Status</th><th>VP</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td style="font-weight:500;">${r.name||"—"}</td>
+        <td>${new Date(r.fire_at).toLocaleDateString()}</td>
+        <td>${r.target_type==="group"?`Group ${r.target_id}`:DEVICES.find(d=>d.uid===r.target_id)?.name||r.target_id||"All"}</td>
+        <td>${r.control_mode?.toUpperCase()||"—"}</td>
+        <td>${r.duration_minutes||"?"} min</td>
+        <td><span class="er-pill ${r.status||"ended"}">${r.status||"Ended"}</span></td>
+        <td>${r.push_to_vp?"🔗":""}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+  } catch(e) { container.innerHTML = `<div class="sched-empty" style="color:var(--red);">Error.</div>`; }
+}
+
+function exportEventHistory() {
+  const table = document.querySelector("#event-history-container table");
+  if (!table) { alert("Load event history first."); return; }
+  const rows = [...table.querySelectorAll("tr")].map(r => [...r.querySelectorAll("th,td")].map(c=>c.textContent.trim()).join(","));
+  const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `vistra_event_history_${new Date().toISOString().slice(0,10)}.csv` });
+  a.click();
+}
+
+// ── Event Reporting (Vistra) ──────────────────────────────────────────────────
+function initEventReporting() {
+  initEventStats(); // populates er-event-select
+  loadSeasonalChart();
+}
+
+async function loadEventReport() {
+  const eventId  = document.getElementById("er-event-select")?.value;
+  if (!eventId) return;
+  try {
+    const [sched, queueRows] = await Promise.all([
+      supabaseGet(`schedules?id=eq.${eventId}&limit=1`),
+      supabaseGet(`schedule_queue?schedule_id=eq.${eventId}`)
+    ]);
+    const s = sched?.[0];
+    if (!s) return;
+    const received = (queueRows||[]).filter(r=>["received","started","ended"].includes(r.status)).length;
+    const started  = (queueRows||[]).filter(r=>["started","ended"].includes(r.status)).length;
+    const total    = (queueRows||[]).length;
+    const pct      = total ? Math.round(started/total*100) : 0;
+    const metaStr  = `${s.name||"Event"} &bull; ${new Date(s.fire_at).toLocaleString()} &bull; ${s.duration_minutes||"?"} min &bull; ${s.control_mode?.toUpperCase()||"—"}`;
+
+    document.getElementById("er-total").textContent     = total;
+    document.getElementById("er-received").textContent  = received;
+    document.getElementById("er-started").textContent   = started;
+    document.getElementById("er-pct").textContent       = pct + "%";
+    document.getElementById("er-event-meta").innerHTML  = metaStr;
+
+    const list = document.getElementById("er-device-list");
+    list.innerHTML = (queueRows||[]).map(r => {
+      const d = DEVICES.find(d2=>d2.uid===r.target_id);
+      return `<div class="er-device-row">
+        <span class="er-device-name">${d?.name||r.target_name||unitName(r.target_id||"")}</span>
+        <span style="font-family:monospace;font-size:10px;color:var(--text-hint);">${(r.target_id||"").slice(-8)}</span>
+        <span class="er-pill ${r.status||"no-event"}">${r.status||"No event"}</span>
+        <span style="font-size:10px;color:var(--text-hint);">${r.relay_action?.replace(/_/g," ")||"—"}</span>
+      </div>`;
+    }).join("") || `<div class="sched-empty">No device records.</div>`;
+  } catch(e) {}
+}
+document.addEventListener("change", e => { if (e.target.id === "er-event-select") loadEventReport(); });
+
+async function loadSeasonalChart() {
+  const range  = document.getElementById("er-chart-range")?.value || "720";
+  const canvas = document.getElementById("er-seasonal-chart");
+  if (!canvas) return;
+  try {
+    const since = new Date(Date.now()-parseInt(range)*3600000).toISOString();
+    const rows  = await supabaseGet(`schedules?fire_at=gte.${since}&order=fire_at.asc&limit=200`);
+    if (!rows?.length) { document.getElementById("er-seasonal-empty").style.display="block"; return; }
+    document.getElementById("er-seasonal-empty").style.display="none";
+    const labels   = rows.map(r => new Date(r.fire_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}));
+    const values   = rows.map(r => (r.duration_minutes||0)/60 * (DEVICES.length * 2.5)); // estimated MW
+    const ctx      = canvas.getContext("2d");
+    if (window._erChart) window._erChart.destroy();
+    window._erChart = new Chart(ctx, {
+      type: "bar",
+      data: { labels, datasets: [{ label:"Est. MW Curtailed", data: values, backgroundColor:"rgba(0,88,160,0.7)", borderColor:"var(--vistra)", borderWidth:1, borderRadius:4 }] },
+      options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ font:{size:10} } }, x:{ ticks:{ font:{size:9}, maxRotation:45 } } } }
+    });
+  } catch(e) {}
+}
+
+function exportEventReport() {
+  const name   = document.getElementById("er-event-select")?.options[document.getElementById("er-event-select").selectedIndex]?.text || "Event";
+  const total  = document.getElementById("er-total")?.textContent || "—";
+  const recv   = document.getElementById("er-received")?.textContent || "—";
+  const start  = document.getElementById("er-started")?.textContent || "—";
+  const pct    = document.getElementById("er-pct")?.textContent || "—";
+  const rows   = [...(document.querySelectorAll("#er-device-list .er-device-row") || [])].map(r =>
+    [...r.querySelectorAll("span")].map(s=>s.textContent.trim()).join(",")
+  );
+  const csv = [`Vistra Energy — DR Event Report`,`Event: ${name}`,`Generated: ${new Date().toLocaleString()}`,
+    `Targeted,${total}`,`Received,${recv}`,`Started,${start}`,`Participation,${pct}`,``,
+    `Device,UID,Status,Action`,...rows].join("\n");
+  const blob = new Blob([csv],{type:"text/csv"});
+  const a = Object.assign(document.createElement("a"),{href:URL.createObjectURL(blob),download:`vistra_event_report_${new Date().toISOString().slice(0,10)}.csv`});
+  a.click();
+}
+
+// ── LoRa ──────────────────────────────────────────────────────────────────────
+async function refreshLoRa() {
+  const container = document.getElementById("lora-gw-list");
+  if (!container) return;
+  container.innerHTML = `<div class="sched-empty">Loading gateway data from ${LORA_NS_URL}…</div>`;
+
+  // For production: replace with your LoRaWAN NS API call
+  // Example using ChirpStack: GET /api/gateways
+  // Example using TTN: GET /api/v3/gateways
+  try {
+    // STUB — replace with real API call when LORA_NS_URL and LORA_NS_KEY are configured
+    const gateways = await fetchLoRaGateways();
+    loraGateways = gateways;
+    document.getElementById("lora-gw-count").textContent = gateways.filter(g=>g.online).length;
+    if (!gateways.length) {
+      container.innerHTML = `<div class="sched-empty">No gateways found. Configure LORA_NS_URL and LORA_NS_KEY.</div>`;
+      return;
+    }
+    container.innerHTML = gateways.map(gw => `
+      <div class="card lora-gateway-card" style="margin-bottom:10px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${gw.name}</div>
+            <div style="font-family:monospace;font-size:10px;color:var(--text-hint);">${gw.id}</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <span class="lora-badge">${gw.model||"LoRa GW"}</span>
+            <span style="font-size:11px;background:${gw.online?"var(--green-bg)":"var(--surface2)"};color:${gw.online?"var(--green-dark)":"var(--text-hint)"};border-radius:8px;padding:2px 8px;font-weight:600;">
+              ${gw.online?"Online":"Offline"}
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--text-hint);">${gw.rxPackets||0} pkts/hr &bull; ${gw.location||"—"}</div>
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:11px;">
+          <div><div class="health-label">Uptime</div><div style="font-weight:600;">${gw.uptime||"—"}</div></div>
+          <div><div class="health-label">Connected Devices</div><div style="font-weight:600;color:var(--lora)">${gw.deviceCount||0}</div></div>
+          <div><div class="health-label">Last Seen</div><div style="font-weight:600;">${gw.lastSeen||"—"}</div></div>
+          <div><div class="health-label">Frequency Plan</div><div style="font-weight:600;">${gw.freqPlan||"US915"}</div></div>
+        </div>
+      </div>`).join("");
+  } catch(e) {
+    container.innerHTML = `<div class="sched-empty" style="color:var(--red);">LoRa gateway error: ${e.message}. Check LORA_NS_URL configuration.</div>`;
+  }
+  document.getElementById("lora-packets").textContent = loraGateways.reduce((s,g)=>s+(g.rxPackets||0),0);
+}
+
+async function fetchLoRaGateways() {
+  if (!LORA_NS_URL || LORA_NS_URL.includes("YOUR_")) return getLoRaStubData().gateways;
+  const res = await fetch(`${LORA_NS_URL}/gateways?limit=50`, {
+    headers: { "Authorization": `Bearer ${LORA_NS_KEY}`, "Accept": "application/json" }
+  });
+  if (!res.ok) throw new Error(`Gateway API returned ${res.status}`);
+  const data = await res.json();
+  // Normalize ChirpStack / TTN response
+  const list = data.result || data.gateways || data || [];
+  return list.map(g => ({
+    id:          g.gatewayId || g.gateway_id || g.id || "unknown",
+    name:        g.name || g.description || "Gateway",
+    online:      g.lastSeenAt ? (Date.now()-new Date(g.lastSeenAt).getTime() < 300000) : false,
+    lastSeen:    g.lastSeenAt ? new Date(g.lastSeenAt).toLocaleTimeString() : "—",
+    location:    g.location?.latitude ? `${g.location.latitude.toFixed(4)}, ${g.location.longitude.toFixed(4)}` : "—",
+    model:       g.metadata?.model || "LoRa",
+    freqPlan:    g.frequencyPlanId || "US915",
+    rxPackets:   g.statsCountRxPackets || g.rxPackets || 0,
+    deviceCount: 0,
+    uptime:      "—"
+  }));
+}
+
+async function refreshLoRaDevices() {
+  const container = document.getElementById("lora-device-list");
+  if (!container) return;
+  try {
+    // Pull LoRa readings from Supabase (table: lora_readings)
+    const rows = await supabaseGet("lora_readings?order=received_at.desc&limit=100");
+    if (!Array.isArray(rows) || !rows.length) {
+      container.innerHTML = `<div class="sched-empty">No LoRa device readings. Ensure lora_readings table is populated.</div>`;
+      document.getElementById("lora-dev-count").textContent = 0;
+      document.getElementById("lora-avg-rssi").textContent = "—";
+      return;
+    }
+    // Build per-device latest
+    const byDevice = {};
+    rows.forEach(r => { if (!byDevice[r.device_uid]) byDevice[r.device_uid] = r; });
+    loraDeviceMap = {};
+    Object.values(byDevice).forEach(r => { loraDeviceMap[r.device_uid] = { rssi: r.rssi, snr: r.snr, gw: r.gateway_id }; });
+    const devList = Object.values(byDevice);
+    const avgRssi = devList.length ? Math.round(devList.reduce((s,r)=>s+r.rssi,0)/devList.length) : null;
+    document.getElementById("lora-dev-count").textContent = devList.length;
+    document.getElementById("lora-avg-rssi").textContent  = avgRssi !== null ? avgRssi + " dBm" : "—";
+    container.innerHTML = devList.map(r => {
+      const d    = DEVICES.find(d2=>d2.uid===r.device_uid);
+      const pct  = Math.max(5, Math.min(100, ((r.rssi+120)/70)*100)).toFixed(0);
+      const rssiColor = r.rssi >= -90 ? "var(--green-dark)" : r.rssi >= -110 ? "var(--amber)" : "var(--red)";
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:0.5px solid var(--border);flex-wrap:wrap;">
+        <div style="flex:1;min-width:120px;">
+          <div style="font-size:12px;font-weight:600;">${d?.name||unitName(r.device_uid)}</div>
+          <div style="font-family:monospace;font-size:10px;color:var(--text-hint);">${r.device_uid}</div>
+        </div>
+        <div style="min-width:90px;">
+          <div style="font-size:10px;color:var(--text-hint);">RSSI</div>
+          <div style="font-size:13px;font-weight:700;color:${rssiColor}">${r.rssi} dBm</div>
+          <div style="height:4px;background:var(--border-md);border-radius:2px;margin-top:3px;"><div style="height:100%;width:${pct}%;background:${rssiColor};border-radius:2px;"></div></div>
+        </div>
+        <div style="min-width:70px;">
+          <div style="font-size:10px;color:var(--text-hint);">SNR</div>
+          <div style="font-size:13px;font-weight:600;">${r.snr!=null?r.snr+"dB":"—"}</div>
+        </div>
+        <div style="min-width:100px;">
+          <div style="font-size:10px;color:var(--text-hint);">Spreading Factor</div>
+          <div style="font-size:12px;font-weight:500;">SF${r.spreading_factor||"—"} / ${r.bandwidth_khz||"?"}kHz</div>
+        </div>
+        <div style="font-size:10px;color:var(--text-hint);">${r.received_at?new Date(r.received_at).toLocaleTimeString():"—"}</div>
+      </div>`;
+    }).join("");
+  } catch(e) {
+    container.innerHTML = `<div class="sched-empty" style="color:var(--red);">LoRa device error: ${e.message}</div>`;
+  }
+}
+
+async function loadLoRaLog() {
+  const tbody = document.getElementById("lora-log-body");
+  const range = parseInt(document.getElementById("lora-log-range")?.value || "1");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="8" class="no-data">Loading…</td></tr>`;
+  try {
+    const since = new Date(Date.now()-range*3600000).toISOString();
+    const rows  = await supabaseGet(`lora_readings?received_at=gte.${since}&order=received_at.desc&limit=200`);
+    if (!rows?.length) { tbody.innerHTML = `<tr><td colspan="8" class="no-data">No messages in range.</td></tr>`; return; }
+    tbody.innerHTML = rows.map(r => {
+      const d = DEVICES.find(d2=>d2.uid===r.device_uid);
+      return `<tr>
+        <td>${new Date(r.received_at).toLocaleTimeString()}</td>
+        <td>${d?.name||unitName(r.device_uid)}</td>
+        <td style="font-size:10px;font-family:monospace;">${r.gateway_id||"—"}</td>
+        <td style="color:${r.rssi>=-90?"var(--green-dark)":r.rssi>=-110?"var(--amber)":"var(--red)"};font-weight:600;">${r.rssi} dBm</td>
+        <td>${r.snr!=null?r.snr+"dB":"—"}</td>
+        <td>${r.spreading_factor?"SF"+r.spreading_factor:"—"}</td>
+        <td>${r.frequency_mhz||"—"} MHz</td>
+        <td style="font-family:monospace;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${r.payload_hex||"—"}</td>
+      </tr>`;
+    }).join("");
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="8" class="no-data" style="color:var(--red);">Error: ${e.message}</td></tr>`; }
+}
+
+function getLoRaStubData() {
+  return { gateways: [
+    { id:"gw001", name:"Building A Gateway", online:true, model:"RAK7289", freqPlan:"US915", rxPackets:142, deviceCount:8, lastSeen:"Just now", uptime:"12d 4h", location:"32.7767, -96.7970" },
+    { id:"gw002", name:"Parking Lot Gateway", online:true, model:"Dragino LPS8N", freqPlan:"US915", rxPackets:89, deviceCount:5, lastSeen:"2 min ago", uptime:"8d 17h", location:"32.7798, -96.8012" }
+  ]};
+}
+
+// ── AMI Widget ────────────────────────────────────────────────────────────────
+async function refreshAMI() {
+  const summaryEl = document.getElementById("ami-summary-content");
+  const listEl    = document.getElementById("ami-meter-list");
+  try {
+    // Load meters from ami_meters table
+    const meters = await supabaseGet("ami_meters?order=created_at.asc");
+    if (!Array.isArray(meters)) { if(summaryEl) summaryEl.innerHTML=`<div class="data-empty" style="padding:1rem 0;">No AMI meters configured.</div>`; return; }
+    amiMeters = meters;
+    document.getElementById("ami-meter-count").textContent = meters.length;
+
+    // Load latest interval readings
+    const now    = new Date();
+    const since  = new Date(now-25*3600000).toISOString();
+    const reads  = await supabaseGet(`ami_readings?received_at=gte.${since}&order=received_at.desc&limit=${meters.length*50}`);
+
+    const byMeter = {};
+    if (Array.isArray(reads)) reads.forEach(r => { if(!byMeter[r.meter_id]) byMeter[r.meter_id]=[]; byMeter[r.meter_id].push(r); });
+
+    // Populate selects
+    const chartSel    = document.getElementById("ami-chart-meter");
+    const baselineSel = document.getElementById("ami-baseline-event");
+    if (chartSel) { chartSel.innerHTML=`<option value="">All Meters</option>`; meters.forEach(m=>{const o=document.createElement("option");o.value=m.meter_id;o.textContent=m.meter_id;chartSel.appendChild(o);}); }
+
+    let totalKwh=0, totalKw=0;
+    const meterRows = meters.map(m => {
+      const recs   = byMeter[m.meter_id] || [];
+      const latest = recs[0];
+      const prev   = recs[1];
+      const kwh    = latest?.kwh_consumed || 0;
+      const delta  = latest && prev ? kwh - prev.kwh_consumed : null;
+      totalKwh += kwh;
+      totalKw  += latest?.kw_demand || 0;
+      const d = DEVICES.find(d2=>d2.uid===m.device_uid);
+      const deltaClass = delta===null?"":delta<0?"down":"up";
+      const deltaStr   = delta===null?"":delta<0?`▼ ${Math.abs(delta).toFixed(2)} kWh`:`▲ ${delta.toFixed(2)} kWh`;
+      return `<div class="ami-meter-row">
+        <div><div class="ami-meter-id"><span class="ami-status-dot"></span>${m.meter_id}</div><div style="font-size:10px;color:var(--text-hint);margin-top:2px;">${d?.name||"Unlinked"} &bull; ${m.utility||"—"}</div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="ami-kwh">${kwh.toFixed(1)} kWh</div>
+          ${deltaStr?`<span class="ami-delta ${deltaClass}">${deltaStr}</span>`:""}
+          <span style="font-size:10px;color:var(--text-hint);">${latest?.kw_demand?latest.kw_demand.toFixed(1)+" kW":""}</span>
+        </div>
+      </div>`;
+    });
+
+    document.getElementById("ami-total-kwh").textContent = totalKwh.toFixed(1);
+    document.getElementById("ami-avg-kw").textContent    = (totalKw/Math.max(1,meters.length)).toFixed(1) + " kW";
+
+    if (summaryEl) summaryEl.innerHTML = meterRows.length
+      ? meterRows.slice(0,3).join("") + (meterRows.length>3?`<div style="font-size:11px;color:var(--text-hint);margin-top:6px;">+${meterRows.length-3} more meters — view AMI tab</div>`:"")
+      : `<div class="data-empty" style="padding:1rem 0;">No meter readings yet.</div>`;
+    if (listEl) listEl.innerHTML = meterRows.join("") || `<div class="sched-empty">No meters configured.</div>`;
+  } catch(e) {
+    if (summaryEl) summaryEl.innerHTML = `<div class="data-empty" style="padding:1rem 0;">AMI data unavailable. Check ami_meters table.</div>`;
+    console.error("[AMI]", e);
+  }
+}
+
+async function loadAMIChart() {
+  const canvas  = document.getElementById("ami-interval-chart");
+  const emptyEl = document.getElementById("ami-chart-empty");
+  const meter   = document.getElementById("ami-chart-meter")?.value;
+  const range   = parseInt(document.getElementById("ami-chart-range")?.value||"24");
+  if (!canvas) return;
+  const since = new Date(Date.now()-range*3600000).toISOString();
+  let q = `ami_readings?received_at=gte.${since}&order=received_at.asc&limit=200`;
+  if (meter) q += `&meter_id=eq.${encodeURIComponent(meter)}`;
+  const rows = await supabaseGet(q);
+  if (!rows?.length) { emptyEl.style.display="block"; return; }
+  emptyEl.style.display="none";
+  const labels = rows.map(r=>new Date(r.received_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}));
+  const data   = rows.map(r=>r.kw_demand||0);
+  const ctx    = canvas.getContext("2d");
+  if (window._amiChart) window._amiChart.destroy();
+  window._amiChart = new Chart(ctx,{
+    type:"line",
+    data:{labels,datasets:[{label:"kW Demand",data,borderColor:"var(--ami)",backgroundColor:"rgba(5,150,105,0.1)",borderWidth:2,tension:0.3,pointRadius:0}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:9},maxTicksLimit:12}}}}
+  });
+}
+
+async function loadBaselineChart() {
+  const canvas   = document.getElementById("ami-baseline-chart");
+  const emptyEl  = document.getElementById("ami-baseline-empty");
+  const eventId  = document.getElementById("ami-baseline-event")?.value;
+  if (!canvas || !eventId) { if(emptyEl) emptyEl.style.display="block"; return; }
+  try {
+    const sched = await supabaseGet(`schedules?id=eq.${eventId}&limit=1`);
+    const s = sched?.[0];
+    if (!s) { emptyEl.style.display="block"; return; }
+    const fireAt = new Date(s.fire_at);
+    const endAt  = new Date(fireAt.getTime()+(s.duration_minutes||120)*60000);
+    const since  = new Date(fireAt.getTime()-3600000).toISOString();
+    const until  = new Date(endAt.getTime()+3600000).toISOString();
+    const reads  = await supabaseGet(`ami_readings?received_at=gte.${since}&received_at=lte.${until}&order=received_at.asc&limit=200`);
+    if (!reads?.length) { emptyEl.style.display="block"; return; }
+    emptyEl.style.display="none";
+    const labels = reads.map(r=>new Date(r.received_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}));
+    const actual = reads.map(r=>r.kw_demand||0);
+    // Stub baseline = pre-event avg * 1.2
+    const preEvent = reads.slice(0,4); const baseAvg = preEvent.reduce((s,r)=>s+(r.kw_demand||0),0)/Math.max(1,preEvent.length);
+    const baseline = reads.map((_,i) => i<4 ? baseAvg : baseAvg * 1.15);
+    const ctx = canvas.getContext("2d");
+    if (window._baselineChart) window._baselineChart.destroy();
+    window._baselineChart = new Chart(ctx,{
+      type:"line",
+      data:{labels,datasets:[
+        {label:"Actual (kW)",data:actual,borderColor:"var(--ami)",backgroundColor:"rgba(5,150,105,0.15)",borderWidth:2,tension:0.3,pointRadius:0},
+        {label:"Baseline (kW)",data:baseline,borderColor:"var(--red)",borderDash:[6,4],borderWidth:1.5,tension:0,pointRadius:0,backgroundColor:"transparent"}
+      ]},
+      options:{responsive:true,plugins:{legend:{display:true,labels:{font:{size:10}}}},scales:{y:{beginAtZero:false,ticks:{font:{size:10}}},x:{ticks:{font:{size:9},maxTicksLimit:10}}}}
+    });
+  } catch(e) { emptyEl.style.display="block"; }
+}
+
+function showAddMeterForm() {
+  const f = document.getElementById("add-meter-form");
+  if (f) f.style.display = f.style.display==="none"?"block":"none";
+}
+
+async function addAMIMeter() {
+  const meterId = document.getElementById("new-meter-id")?.value?.trim();
+  const device  = document.getElementById("new-meter-device")?.value;
+  const utility = document.getElementById("new-meter-utility")?.value?.trim();
+  const rate    = document.getElementById("new-meter-rate")?.value;
+  const errEl   = document.getElementById("add-meter-error");
+  if (!meterId) { errEl.textContent="Meter ID required."; errEl.style.display="block"; return; }
+  errEl.style.display="none";
+  const res = await supabasePost("ami_meters",{ meter_id:meterId, device_uid:device||null, utility:utility||null, rate_class:rate });
+  if (!res.ok) { errEl.textContent="Error adding meter: "+(await res.text()); errEl.style.display="block"; return; }
+  document.getElementById("add-meter-form").style.display="none";
+  await refreshAMI();
+}
+
+// ── Virtual Peaker ────────────────────────────────────────────────────────────
+function loadVPConfig() {
+  const saved = localStorage.getItem("vistra_vp_config");
+  if (saved) {
+    vpConfig = JSON.parse(saved);
+    document.getElementById("vp-api-key").value    = vpConfig.apiKey || "";
+    document.getElementById("vp-program-id").value = vpConfig.programId || "";
+    document.getElementById("vp-target-kw").value  = vpConfig.targetKw || "";
+    const mkt = document.getElementById("vp-market");
+    if (mkt) mkt.value = vpConfig.market || "ERCOT";
+  }
+}
+
+function saveVPConfig() {
+  vpConfig = {
+    apiKey:    document.getElementById("vp-api-key")?.value,
+    programId: document.getElementById("vp-program-id")?.value,
+    market:    document.getElementById("vp-market")?.value || "ERCOT",
+    targetKw:  parseFloat(document.getElementById("vp-target-kw")?.value) || 0
+  };
+  localStorage.setItem("vistra_vp_config", JSON.stringify(vpConfig));
+  const statusEl = document.getElementById("vp-config-status");
+  if (statusEl) { statusEl.textContent="✅ Configuration saved."; statusEl.style.display="block"; statusEl.style.color="var(--green-dark)"; setTimeout(()=>statusEl.style.display="none",3000); }
+  document.getElementById("vp-target-label").textContent = `Target: ${vpConfig.targetKw} kW`;
+}
+
+async function testVPConnection() {
+  const dot   = document.getElementById("vp-connection-dot");
+  const label = document.getElementById("vp-connection-label");
+  if (!vpConfig.apiKey) { label.textContent="No API key — save configuration first."; return; }
+  label.textContent = "Testing…"; dot.style.background = "var(--amber)";
+  try {
+    const res = await fetch(`${VP_PROXY_URL}programs/${vpConfig.programId||"test"}`, {
+      headers: { "Authorization": `Bearer ${vpConfig.apiKey}`, "Content-Type": "application/json" }
+    });
+    if (res.ok) { dot.style.background="var(--green)"; label.textContent="Connected to Virtual Peaker"; }
+    else { dot.style.background="var(--red)"; label.textContent=`Connection failed (${res.status}) — check API key and program ID`; }
+  } catch(e) { dot.style.background="var(--red)"; label.textContent=`Connection error: ${e.message}. Deploy VP proxy worker.`; }
+}
+
+async function syncVirtualPeaker() {
+  if (!vpConfig.apiKey) { alert("Configure Virtual Peaker API key first."); return; }
+  setStatus("sending", "Syncing with Virtual Peaker…");
+  try {
+    const res = await fetch(`${VP_PROXY_URL}programs/${vpConfig.programId}/status`, {
+      headers: { "Authorization": `Bearer ${vpConfig.apiKey}` }
+    });
+    const data = res.ok ? await res.json() : null;
+    const currentKw = data?.current_curtailment_kw || 0;
+    const targetKw  = vpConfig.targetKw || 1;
+    document.getElementById("vp-current-kw").textContent     = currentKw.toFixed(0);
+    document.getElementById("stat-mw").textContent            = (currentKw/1000).toFixed(2);
+    document.getElementById("vp-capacity-fill").style.width   = Math.min(100,(currentKw/targetKw*100)).toFixed(0)+"%";
+    document.getElementById("vp-target-label").textContent    = `Target: ${targetKw} kW`;
+    document.getElementById("stat-participation").textContent = data?.participation_rate ? data.participation_rate+"%" : "—";
+    setStatus("ready", "Virtual Peaker sync complete.");
+  } catch(e) { setStatus("error", `VP sync error: ${e.message}`); }
+}
+
+async function notifyVirtualPeaker(event) {
+  if (!vpConfig.apiKey || !vpConfig.programId) return;
+  try {
+    await fetch(`${VP_PROXY_URL}programs/${vpConfig.programId}/events`, {
+      method: "POST",
+      headers: { "Authorization":`Bearer ${vpConfig.apiKey}`, "Content-Type":"application/json" },
+      body: JSON.stringify({
+        name: event.name, start_time: event.fireAt, duration_minutes: parseInt(event.duration),
+        target: event.target, source: "vistra_gs_dashboard"
+      })
+    });
+  } catch(e) { console.warn("[VP notify]", e.message); }
+}
+
+async function loadVPEvents() {
+  const container = document.getElementById("vp-events-list");
+  if (!container) return;
+  container.innerHTML = `<div class="sched-empty">Loading from Virtual Peaker…</div>`;
+  try {
+    if (!vpConfig.apiKey) { container.innerHTML=`<div class="sched-empty">Configure VP API key to load dispatch events.</div>`; return; }
+    const res = await fetch(`${VP_PROXY_URL}programs/${vpConfig.programId}/events?upcoming=true`, {
+      headers: { "Authorization":`Bearer ${vpConfig.apiKey}` }
+    });
+    const data = res.ok ? await res.json() : [];
+    const events = data.events || data || [];
+    if (!events.length) { container.innerHTML=`<div class="sched-empty">No upcoming VP dispatch events.</div>`; return; }
+    container.innerHTML = events.map(e => `
+      <div class="vp-event-row ${e.status==="active"?"active-event":""}">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div><div class="vp-event-name">${e.name||"DR Event"}</div><div class="vp-event-meta">${e.start_time?new Date(e.start_time).toLocaleString():"—"} &bull; ${e.duration_minutes||"?"} min &bull; ${e.type||"Curtailment"}</div></div>
+          <span class="er-pill ${e.status||"pending"}">${e.status||"Pending"}</span>
+        </div>
+        <div class="vp-capacity-bar"><div class="vp-capacity-fill" style="width:${(e.participation_rate||0)}%;"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-hint);">
+          <span>${e.current_kw||0} kW actual</span><span>${e.target_kw||vpConfig.targetKw} kW target</span>
+        </div>
+      </div>`).join("");
+  } catch(e) { container.innerHTML=`<div class="sched-empty" style="color:var(--red);">VP events error: ${e.message}. Deploy VP proxy worker.</div>`; }
+}
+
+async function loadVPMetrics() {
+  if (!vpConfig.apiKey) return;
+  try {
+    const res = await fetch(`${VP_PROXY_URL}programs/${vpConfig.programId}/metrics`, {
+      headers: { "Authorization":`Bearer ${vpConfig.apiKey}` }
+    });
+    const m = res.ok ? await res.json() : {};
+    document.getElementById("vp-m-events").textContent  = m.events_completed||"—";
+    document.getElementById("vp-m-kwh").textContent     = m.total_kwh_curtailed?m.total_kwh_curtailed.toFixed(0):"—";
+    document.getElementById("vp-m-pct").textContent     = m.avg_performance_pct?m.avg_performance_pct+"%":"—";
+    document.getElementById("vp-m-revenue").textContent = m.estimated_revenue?"$"+(m.estimated_revenue).toLocaleString():"—";
+    // Performance chart stub
+    const canvas = document.getElementById("vp-performance-chart");
+    if (canvas && m.monthly_performance) {
+      const ctx = canvas.getContext("2d");
+      if (window._vpChart) window._vpChart.destroy();
+      window._vpChart = new Chart(ctx,{
+        type:"bar",
+        data:{labels:m.monthly_performance.map(x=>x.month),datasets:[{label:"Performance %",data:m.monthly_performance.map(x=>x.pct),backgroundColor:"rgba(217,119,6,0.7)",borderColor:"var(--vp)",borderWidth:1,borderRadius:4}]},
+        options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{font:{size:10}}},x:{ticks:{font:{size:9}}}}}
+      });
+    }
+  } catch(e) {}
+}
+
+// ── Device Controls ───────────────────────────────────────────────────────────
+function buildControls() {
+  const grid = document.getElementById("devices-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  DEVICES.forEach(device => {
+    const card = document.createElement("div");
+    card.className = "device-card";
+    card.innerHTML = `
+      <div class="device-header">
+        <div>
+          <div class="device-name">${device.name}</div>
+          <div class="device-uid">${device.uid}</div>
+        </div>
+        <div class="device-badge" id="badge-${device.id}"></div>
+      </div>
+      <div class="relay-rows">
+        ${[1,2,3,4].map(n => `
+        <div class="relay-row" id="row-${device.id}-${n}" onclick="toggleRelay('${device.id}',${n})">
+          <div class="relay-row-label">Relay ${n}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="relay-row-state" id="rlbl-${device.id}-${n}">Off</span>
+            <div class="toggle" id="rtgl-${device.id}-${n}"><div class="track"></div><div class="thumb"></div></div>
+          </div>
+        </div>`).join("")}
+      </div>
+      <div class="all-row" id="allrow-${device.id}" onclick="toggleAll('${device.id}')">
+        <div class="all-row-label">All Relays</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="all-row-state" id="alllbl-${device.id}">All off</span>
+          <div class="toggle blue" id="atgl-${device.id}"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function buildDataCards() {
+  const grid   = document.getElementById("data-grid");
+  const histSel= document.getElementById("history-device-select");
+  if (!grid) return;
+  grid.innerHTML = "";
+  if (histSel) { histSel.innerHTML = `<option value="">All Devices</option>`; }
+  DEVICES.forEach(device => {
+    const card = document.createElement("div");
+    card.className = "data-card";
+    card.innerHTML = `
+      <div class="data-card-header">
+        <div class="data-card-title">${device.name}</div>
+        <button class="data-refresh-btn" onclick="loadLatestDevice('${device.id}')">↻ Refresh</button>
+        <button class="data-refresh-btn" style="color:var(--ami-dark);border-color:var(--ami);" onclick="requestHealthCheck('${device.uid}','${device.id}')">🩺 Health</button>
+      </div>
+      <div id="data-fields-${device.id}"><div class="data-empty">Loading…</div></div>
+      <div class="data-timestamp" id="data-ts-${device.id}"></div>
+      <div id="health-strip-${device.id}"></div>`;
+    grid.appendChild(card);
+    if (histSel) {
+      const o = document.createElement("option"); o.value = device.uid; o.textContent = device.name; histSel.appendChild(o);
+    }
+  });
+}
+
+// ── Command send ──────────────────────────────────────────────────────────────
+function setRelayUI(deviceId,num,on){relayState[deviceId][num]=on;document.getElementById(`row-${deviceId}-${num}`).classList.toggle("on",on);document.getElementById(`rtgl-${deviceId}-${num}`).classList.toggle("on",on);const l=document.getElementById(`rlbl-${deviceId}-${num}`);l.textContent=on?"On":"Off";l.className="relay-row-state"+(on?" on":"");}
+function setAllUI(deviceId,on){relayState[deviceId].all=on;document.getElementById(`allrow-${deviceId}`).classList.toggle("on",on);document.getElementById(`atgl-${deviceId}`).classList.toggle("on",on);const l=document.getElementById(`alllbl-${deviceId}`);l.textContent=on?"All on":"All off";l.className="all-row-state"+(on?" on":"");}
+function setDeviceDisabled(deviceId,disabled){[1,2,3,4].forEach(n=>document.getElementById(`row-${deviceId}-${n}`).classList.toggle("disabled",disabled));document.getElementById(`allrow-${deviceId}`).classList.toggle("disabled",disabled);}
+
+async function send(deviceId,key,label){
+  if(busy)return false;
+  const device=DEVICES.find(d=>d.id===deviceId);if(!device)return false;
+  busy=true;setDeviceDisabled(deviceId,true);setStatus("sending",label+"…");
+  try{
+    const res=await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json","X-Device-UID":device.uid},body:JSON.stringify(COMMANDS[key])});
+    if(res.ok){setStatus("ready",label+" — done.");busy=false;setDeviceDisabled(deviceId,false);return true;}
+    else{setStatus("error","Error "+res.status);busy=false;setDeviceDisabled(deviceId,false);return false;}
+  }catch(e){setStatus("error","Network error");busy=false;setDeviceDisabled(deviceId,false);return false;}
+}
+async function sendToDevice(uid,key){
+  try{await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json","X-Device-UID":uid},body:JSON.stringify(COMMANDS[key])});}
+  catch(e){console.error("Send error",uid,e);}
+}
+async function toggleRelay(deviceId,num){
+  const on=!relayState[deviceId][num];
+  const ok=await send(deviceId,`${num}_${on?"on":"off"}`,`${DEVICES.find(d=>d.id===deviceId)?.name} Relay ${num} ${on?"ON":"OFF"}`);
+  if(ok){setRelayUI(deviceId,num,on);if([1,2,3,4].every(n=>relayState[deviceId][n]))setAllUI(deviceId,true);else if([1,2,3,4].every(n=>!relayState[deviceId][n]))setAllUI(deviceId,false);}
+}
+async function toggleAll(deviceId){
+  const on=!relayState[deviceId].all;
+  const ok=await send(deviceId,`all_${on?"on":"off"}`,`${DEVICES.find(d=>d.id===deviceId)?.name} All ${on?"ON":"OFF"}`);
+  if(ok){setAllUI(deviceId,on);[1,2,3,4].forEach(n=>setRelayUI(deviceId,n,on));}
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────────
+async function loadGroups(){
+  const container=document.getElementById("groups-container");
+  container.innerHTML=`<div class="sched-empty">Loading groups…</div>`;
+  try{
+    const names=await supabaseGet("group_names?order=group_number");
+    if(Array.isArray(names))names.forEach(n=>{groupNames[n.group_number]=n.group_name;});
+    const assignments=await supabaseGet("device_groups?order=group_number");
+    groupAssignments={};
+    if(Array.isArray(assignments))assignments.forEach(a=>{if(!groupAssignments[a.device_uid])groupAssignments[a.device_uid]=[];groupAssignments[a.device_uid].push(a.group_number);});
+    renderGroups();
+  }catch(e){container.innerHTML=`<div class="sched-empty" style="color:var(--red);">Error loading groups.</div>`;}
+}
+function renderGroups(){
+  const container=document.getElementById("groups-container");
+  container.innerHTML=`<div class="groups-layout">${[1,2,3].map(gn=>`
+    <div class="group-card">
+      <div class="group-header">
+        <input class="group-name-input" id="gname-${gn}" value="${groupNames[gn]}" placeholder="Group name…" />
+        <button class="group-save-btn" onclick="saveGroupName(${gn})">Save</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:1rem;">
+        <button class="group-cmd-btn on" onclick="sendGroupCommand(${gn},'all_on')">All ON</button>
+        <button class="group-cmd-btn off" onclick="sendGroupCommand(${gn},'all_off')">All OFF</button>
+      </div>
+      ${DEVICES.map(d=>`
+        <label class="group-device-row ${(groupAssignments[d.uid]||[]).includes(gn)?"group-member":""}">
+          <input type="checkbox" ${(groupAssignments[d.uid]||[]).includes(gn)?"checked":""} onchange="assignDevice('${d.uid}',${gn},this.checked)" />
+          <div style="font-size:12px;font-weight:500;">${d.name}</div>
+        </label>`).join("")}
+    </div>`).join("")}</div>`;
+}
+async function saveGroupName(gn){const input=document.getElementById(`gname-${gn}`);const name=input.value.trim()||`Group ${gn}`;groupNames[gn]=name;await supabaseUpsert("group_names",{group_number:gn,group_name:name},"group_number");setStatus("ready",`Group ${gn} name saved.`);}
+async function assignDevice(uid,gn,checked){
+  if(checked){await supabaseUpsert("device_groups",{group_number:gn,group_name:groupNames[gn],device_uid:uid},"group_number,device_uid");if(!groupAssignments[uid])groupAssignments[uid]=[];if(!groupAssignments[uid].includes(gn))groupAssignments[uid].push(gn);}
+  else{await supabaseDelete("device_groups",`device_uid=eq.${encodeURIComponent(uid)}&group_number=eq.${gn}`);if(groupAssignments[uid])groupAssignments[uid]=groupAssignments[uid].filter(g=>g!==gn);}
+  renderGroups();
+}
+async function sendGroupCommand(gn,key){
+  const members=DEVICES.filter(d=>(groupAssignments[d.uid]||[]).includes(gn));
+  if(!members.length){setStatus("error","No devices in this group.");return;}
+  setStatus("sending",`${groupNames[gn]} — sending ${key.replace("_"," ").toUpperCase()}…`);
+  for(const device of members)await sendToDevice(device.uid,key);
+  setStatus("ready",`${groupNames[gn]} — ${key.replace("_"," ").toUpperCase()} sent to ${members.length} device(s).`);
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+function relayDot(val){const on=val>0;return `<span class="relay-dot ${on?"on":"off"}"></span>${on?"On":"Off"}`;}
+
+async function requestHealthCheck(uid,deviceId){
+  setStatus("sending","Requesting health check…");
+  try{
+    const res=await fetch(`${PROXY_URL}env`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceUID:uid,environment_variables:{_restart:String(Math.floor(Date.now()/1000))}})});
+    if(res.ok){setStatus("ready","Health check requested.");setTimeout(async()=>{await fetch(`${PROXY_URL}env`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceUID:uid,environment_variables:{_restart:""}})});},30000);}
+    else{setStatus("error","Health check failed: "+(await res.text()));}
+  }catch(e){setStatus("error","Health check error: "+e.message);}
+}
+
+async function loadLatestDevice(deviceId){
+  const device=DEVICES.find(d=>d.id===deviceId);
+  const container=document.getElementById(`data-fields-${deviceId}`);
+  const tsEl=document.getElementById(`data-ts-${deviceId}`);
+  if(!container)return;
+  container.innerHTML=`<div class="data-empty">Loading…</div>`;
+  try{
+    const rows=await supabaseGet(`device_readings?device_uid=eq.${encodeURIComponent(device.uid)}&order=recorded_at.desc&limit=1`);
+    if(!rows?.length){container.innerHTML=`<div class="data-empty">No data yet</div>`;tsEl.textContent="";return;}
+    const r=rows[0];
+    document.getElementById(`badge-${deviceId}`)?.classList.add("online");
+    const loraInfo=loraDeviceMap[device.uid];
+    const connBadge=loraInfo?`<span class="lora-badge">LoRa ${loraInfo.rssi} dBm</span>`:"";
+    container.innerHTML=`${connBadge}<div class="data-fields">
+      <div class="data-field"><span class="data-field-name">Relay 1</span><span class="data-field-value">${relayDot(r.relay_status_r1)}</span></div>
+      <div class="data-field"><span class="data-field-name">Relay 2</span><span class="data-field-value">${relayDot(r.relay_status_r2)}</span></div>
+      <div class="data-field"><span class="data-field-name">Relay 3</span><span class="data-field-value">${relayDot(r.relay_status_r3)}</span></div>
+      <div class="data-field"><span class="data-field-name">Relay 4</span><span class="data-field-value">${relayDot(r.relay_status_r4)}</span></div>
+      <div class="data-field"><span class="data-field-name">Voltage</span><span class="data-field-value">${r.voltage?(r.voltage/10).toFixed(1)+" V":"—"}</span></div>
+      <div class="data-field"><span class="data-field-name">Current</span><span class="data-field-value">${r.current?(r.current/10).toFixed(1)+" A":"—"}</span></div>
+      <div class="data-field"><span class="data-field-name">Watts</span><span class="data-field-value">${r.watts_consumed?r.watts_consumed+" W":"—"}</span></div>
+      <div class="data-field"><span class="data-field-name">Power Factor</span><span class="data-field-value">${r.power_factor!=null?(r.power_factor/1000).toFixed(3):"—"}</span></div>
+      <div class="data-field"><span class="data-field-name">Location</span><span class="data-field-value">${r.location??"—"}</span></div>
+    </div>`;
+    tsEl.textContent=`Updated: ${new Date(r.recorded_at).toLocaleString()}`;
+    // Health strip
+    const healthEl=document.getElementById(`health-strip-${deviceId}`);
+    if(healthEl){
+      try{
+        const hRows=await supabaseGet(`device_health?device_uid=eq.${encodeURIComponent(device.uid)}&order=recorded_at.desc&limit=1`);
+        const h=hRows?.[0];
+        if(h){
+          const volt=h.voltage?parseFloat(h.voltage):null;
+          const temp=h.temperature?parseFloat(h.temperature):null;
+          const rsrp=h.rsrp?parseInt(h.rsrp):null;
+          const bars=h.bars?parseInt(h.bars):null;
+          const voltColor=!volt?"":volt>=3.6?"health-good":volt>=3.3?"health-warn":"health-bad";
+          const tempColor=!temp?"":temp<=60?"health-good":temp<=75?"health-warn":"health-bad";
+          const rsrpColor=!rsrp?"":rsrp>=-90?"health-good":rsrp>=-105?"health-warn":"health-bad";
+          const barsHtml=[1,2,3,4,5].map(b=>`<div class="signal-bar ${bars&&bars>=b?"active":""}" style="height:${b*3}px;"></div>`).join("");
+          const fwShort=h.firmware_version?h.firmware_version.replace("notecard-u5-","v"):"—";
+          healthEl.innerHTML=`<div class="health-strip">
+            <div class="health-item"><div class="health-label">Voltage</div><div class="health-value ${voltColor}">${volt?volt.toFixed(2)+"V":"—"}</div></div>
+            <div class="health-item"><div class="health-label">Temp</div><div class="health-value ${tempColor}">${temp?temp.toFixed(1)+"°C":"—"}</div></div>
+            <div class="health-item"><div class="health-label">Signal</div><div class="health-value"><div class="signal-bars">${barsHtml}</div></div></div>
+            <div class="health-item"><div class="health-label">RSRP</div><div class="health-value ${rsrpColor}">${rsrp?rsrp+"dBm":"—"}</div></div>
+            <div class="health-item"><div class="health-label">Firmware</div><div class="health-value" style="font-size:10px;">${fwShort}</div></div>
+            ${loraInfo?`<div class="health-item"><div class="health-label">LoRa RSSI</div><div class="health-value" style="color:var(--lora)">${loraInfo.rssi} dBm</div></div>`:""}
+          </div>`;
+        }
+      }catch(e){}
+    }
+  }catch(e){container.innerHTML=`<div class="data-empty">Error loading data</div>`;}
+}
+async function loadLatest(){DEVICES.forEach(d=>loadLatestDevice(d.id));}
+
+async function loadHistory(){
+  const deviceFilter=document.getElementById("history-device-select")?.value;
+  const rangeHours=document.getElementById("history-range")?.value;
+  const tbody=document.getElementById("history-body");
+  if(!tbody)return;
+  tbody.innerHTML=`<tr><td colspan="11" class="no-data">Loading…</td></tr>`;
+  try{
+    let q=`device_readings?order=recorded_at.desc&limit=200`;
+    if(deviceFilter)q+=`&device_uid=eq.${encodeURIComponent(deviceFilter)}`;
+    if(rangeHours){const since=new Date(Date.now()-parseInt(rangeHours)*3600000).toISOString();q+=`&recorded_at=gte.${since}`;}
+    const rows=await supabaseGet(q);
+    if(!rows?.length){tbody.innerHTML=`<tr><td colspan="11" class="no-data">No history found</td></tr>`;return;}
+    tbody.innerHTML=rows.map(r=>{
+      const devName=DEVICES.find(d=>d.uid===r.device_uid)?.name??unitName(r.device_uid);
+      return `<tr>
+        <td>${new Date(r.recorded_at).toLocaleString()}</td><td>${devName}</td>
+        <td>${relayDot(r.relay_status_r1)}</td><td>${relayDot(r.relay_status_r2)}</td>
+        <td>${relayDot(r.relay_status_r3)}</td><td>${relayDot(r.relay_status_r4)}</td>
+        <td>${r.voltage!=null?(r.voltage/10).toFixed(1)+"V":"—"}</td>
+        <td>${r.current!=null?(r.current/10).toFixed(1)+"A":"—"}</td>
+        <td>${r.watts_consumed!=null?r.watts_consumed+"W":"—"}</td>
+        <td>${r.power_factor!=null?(r.power_factor/1000).toFixed(3):"—"}</td>
+        <td>${r.customer_comfort>0?"On":"Off"}</td>
+      </tr>`;
+    }).join("");
+  }catch(e){tbody.innerHTML=`<tr><td colspan="11" class="no-data" style="color:var(--red);">Error loading history</td></tr>`;}
+}
+
+function exportHistory(){
+  const rows=[...document.querySelectorAll("#history-body tr")].map(r=>[...r.querySelectorAll("td")].map(c=>c.textContent.trim()).join(","));
+  if(!rows.length||rows[0].includes("No history")){alert("Load history first.");return;}
+  const blob=new Blob([["Time,Device,R1,R2,R3,R4,Voltage,Current,Watts,PF,Comfort",...rows].join("\n")],{type:"text/csv"});
+  const a=Object.assign(document.createElement("a"),{href:URL.createObjectURL(blob),download:`vistra_device_history_${new Date().toISOString().slice(0,10)}.csv`});a.click();
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+async function loadMap(){
+  if(!mapInitialized){
+    map=L.map("map").setView([32.7767,-96.7970],9);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap","maxZoom":18}).addTo(map);
+    mapInitialized=true;
+  }
+  try{
+    for(const device of DEVICES){
+      const rows=await supabaseGet(`device_readings?device_uid=eq.${encodeURIComponent(device.uid)}&order=recorded_at.desc&limit=1&select=lat,lon,recorded_at`);
+      const row=rows?.[0];
+      if(!row||!row.lat||!row.lon)continue;
+      const online=Date.now()-new Date(row.recorded_at).getTime()<24*60*60*1000;
+      const loraInfo=loraDeviceMap[device.uid];
+      const color=loraInfo?"#8B5CF6":online?"#1D9E75":"#888780";
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 0C6.27 0 0 6.27 0 14c0 9.33 14 22 14 22s14-12.67 14-22C28 6.27 21.73 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="6" fill="white"/></svg>`;
+      const icon=L.divIcon({html:svg,className:"",iconSize:[28,36],iconAnchor:[14,36],popupAnchor:[0,-36]});
+      if(mapMarkers[device.uid]){map.removeLayer(mapMarkers[device.uid]);}
+      const marker=L.marker([row.lat,row.lon],{icon}).addTo(map);
+      marker.bindPopup(`<div style="font-family:-apple-system,sans-serif;min-width:160px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${device.name}</div>
+        ${loraInfo?`<div style="font-size:11px;color:#8B5CF6;margin-bottom:4px;">LoRa: ${loraInfo.rssi} dBm</div>`:""}
+        <div style="font-size:11px;color:#5a5956;">Last seen: ${new Date(row.recorded_at).toLocaleString()}</div>
+      </div>`);
+      mapMarkers[device.uid]=marker;
+    }
+    // LoRa gateways on map
+    loraGateways.forEach(gw=>{
+      if(!gw.location||!gw.location.includes(","))return;
+      const [lat,lon]=gw.location.split(",").map(Number);
+      if(isNaN(lat)||isNaN(lon))return;
+      const gwIcon=L.divIcon({html:`<div style="width:18px;height:18px;background:#8B5CF6;border:2px solid white;border-radius:4px;"></div>`,className:"",iconSize:[18,18],iconAnchor:[9,9]});
+      L.marker([lat,lon],{icon:gwIcon}).addTo(map).bindPopup(`<div><b>${gw.name}</b><br>LoRa Gateway<br>${gw.freqPlan}</div>`);
+    });
+  }catch(e){console.error("[Map]",e);}
+}
+
+// ── Bubble-up / Settings ──────────────────────────────────────────────────────
+async function setBubbleUp(uid,deviceId,mins){
+  try{
+    const res=await fetch(`${PROXY_URL}env`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceUID:uid,environment_variables:{inbound_secs:String(mins*60),outbound_secs:String(mins*60)}})});
+    return res.ok;
+  }catch(e){return false;}
+}
+async function setEventMode(){
+  setStatus("sending","Setting Event Mode (5 min)…");
+  const realDevices=DEVICES.filter(d=>!d.uid.includes("PLACEHOLDER"));
+  await Promise.all(realDevices.map(d=>setBubbleUp(d.uid,d.id,5)));
+  setStatus("ready","✅ Event Mode activated — 5 min interval on all devices.");
+  const el=document.getElementById("mode-status");
+  if(el){el.textContent="🟢 Event Mode active — 5 min bubble-up";el.style.background="var(--green-bg)";el.style.color="var(--green-dark)";el.style.display="block";}
+}
+async function setNormalMode(){
+  setStatus("sending","Restoring Normal Mode…");
+  const realDevices=DEVICES.filter(d=>!d.uid.includes("PLACEHOLDER"));
+  await Promise.all(realDevices.map(d=>setBubbleUp(d.uid,d.id,30)));
+  setStatus("ready","✅ Normal Mode activated — 30 min interval.");
+  const el=document.getElementById("mode-status");
+  if(el){el.textContent="⚙️ Normal Mode active — 30 min bubble-up";el.style.background="var(--surface2)";el.style.color="var(--text-secondary)";el.style.display="block";}
+}
+async function refreshBubbleStatus(){
+  document.getElementById("global-configured-interval").textContent="See device settings";
+  document.getElementById("global-actual-interval").textContent="See device readings";
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+function updateAdminHeader(){
+  const u=document.getElementById("admin-current-user");const r=document.getElementById("admin-current-role");
+  if(u)u.textContent=currentUser?.email||"—";
+  if(r)r.textContent=ROLE_LABELS[currentUserRole]||currentUserRole;
+}
+function showAddUserForm(){const f=document.getElementById("add-user-form");if(f)f.style.display=f.style.display==="none"?"block":"none";}
+async function createUser(){
+  const name=document.getElementById("new-user-name")?.value?.trim();
+  const email=document.getElementById("new-user-email")?.value?.trim();
+  const password=document.getElementById("new-user-password")?.value?.trim();
+  const role=document.getElementById("new-user-role")?.value;
+  const errEl=document.getElementById("add-user-error");
+  if(!email||!password||!role){errEl.textContent="Email, password, and role required.";errEl.style.display="block";return;}
+  errEl.style.display="none";
+  const tempClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+  const{data:su,error}=await tempClient.auth.signUp({email,password,options:{data:{full_name:name}}});
+  if(error){errEl.textContent=error.message;errEl.style.display="block";return;}
+  if(!su?.user?.id){errEl.textContent="User may already exist.";errEl.style.display="block";return;}
+  await fetch(`${SUPABASE_URL}/rest/v1/user_profiles`,{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({id:su.user.id,email,full_name:name||"",role,is_active:true,created_by:currentUser?.id})});
+  document.getElementById("add-user-form").style.display="none";
+  await loadUsersTable();
+  alert(`✅ User ${email} created.`);
+}
+async function loadUsersTable(){
+  const container=document.getElementById("users-table-container");
+  if(!container||currentUserRole!=="administrator")return;
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/user_profiles?select=*&order=created_at.asc`,{headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token}`}});
+  const users=await res.json();
+  if(!users?.length){container.innerHTML=`<div class="sched-empty">No users found.</div>`;return;}
+  container.innerHTML=`<div style="overflow-x:auto;"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th></tr></thead><tbody>
+  ${users.map(u=>`<tr>
+    <td style="font-weight:500;">${u.full_name||"—"}${u.id===currentUser?.id?' <span style="font-size:10px;color:var(--vistra);">(you)</span>':""}</td>
+    <td>${u.email}</td>
+    <td>${ROLE_LABELS[u.role]||u.role}</td>
+    <td style="color:${u.is_active?"var(--green-dark)":"var(--red)"};">${u.is_active?"Active":"Inactive"}</td>
+    <td style="font-size:11px;color:var(--text-hint);">${u.last_login?new Date(u.last_login).toLocaleDateString():"Never"}</td>
+  </tr>`).join("")}</tbody></table></div>`;
+}
+function showAddDeviceForm(){const f=document.getElementById("add-device-form");if(f)f.style.display=f.style.display==="none"?"block":"none";}
+async function createDevice(){
+  const uid=document.getElementById("new-device-uid")?.value?.trim();
+  const name=document.getElementById("new-device-name")?.value?.trim();
+  const errEl=document.getElementById("add-device-error");
+  if(!uid){errEl.textContent="Device UID required.";errEl.style.display="block";return;}
+  if(!name){errEl.textContent="Display name required.";errEl.style.display="block";return;}
+  errEl.style.display="none";
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/devices`,{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token||SUPABASE_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({uid,name,enabled:true})});
+  if(!res.ok){const txt=await res.text();errEl.textContent=txt.includes("duplicate")||txt.includes("unique")?"A device with this UID already exists.":"Error: "+txt;errEl.style.display="block";return;}
+  document.getElementById("add-device-form").style.display="none";
+  await loadDevicesTable();await loadDevicesFromDB();buildControls();buildDataCards();
+}
+async function loadDevicesTable(){
+  const container=document.getElementById("devices-table-container");
+  if(!container)return;
+  container.innerHTML=`<div class="sched-empty">Loading…</div>`;
+  try{
+    const rows=await supabaseGet("devices?order=created_at.asc");
+    if(!rows?.length){container.innerHTML=`<div class="sched-empty">No devices. Click + Add Device.</div>`;return;}
+    container.innerHTML=`<div style="overflow-x:auto;"><table><thead><tr><th>Name</th><th>UID</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${rows.map(d=>`<tr>
+      <td style="font-weight:500;">${d.name||"—"}</td>
+      <td style="font-family:monospace;font-size:10px;color:var(--text-hint);">${d.uid}</td>
+      <td><button onclick="toggleDeviceEnabled(${JSON.stringify(d.uid).replace(/"/g,"&quot;")},${d.enabled})" style="padding:3px 8px;border-radius:10px;border:0.5px solid ${d.enabled?"var(--green)":"var(--border-md)"};background:${d.enabled?"rgba(22,163,74,0.1)":"var(--surface2)"};color:${d.enabled?"var(--green-dark)":"var(--text-hint)"};font-size:10px;font-weight:600;cursor:pointer;">${d.enabled?"Active":"Disabled"}</button></td>
+      <td style="display:flex;gap:6px;">
+        <button onclick="renameDevice(${JSON.stringify(d.uid).replace(/"/g,"&quot;")},${JSON.stringify(d.name||"").replace(/"/g,"&quot;")})" style="padding:3px 8px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:11px;cursor:pointer;">✏️</button>
+        <button onclick="deleteDevice(${JSON.stringify(d.uid).replace(/"/g,"&quot;")},${JSON.stringify(d.name||d.uid).replace(/"/g,"&quot;")})" style="padding:3px 6px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;font-size:11px;cursor:pointer;color:var(--text-hint);">🗑</button>
+      </td>
+    </tr>`).join("")}</tbody></table></div>`;
+  }catch(e){container.innerHTML=`<div class="sched-empty" style="color:var(--red);">Error: ${e.message}</div>`;}
+}
+async function toggleDeviceEnabled(uid,currently){await fetch(`${SUPABASE_URL}/rest/v1/devices?uid=eq.${encodeURIComponent(uid)}`,{method:"PATCH",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token||SUPABASE_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({enabled:!currently})});await loadDevicesTable();await loadDevicesFromDB();buildControls();buildDataCards();}
+async function renameDevice(uid,currentName){const n=prompt("New display name:",currentName);if(!n||n.trim()===currentName)return;await fetch(`${SUPABASE_URL}/rest/v1/devices?uid=eq.${encodeURIComponent(uid)}`,{method:"PATCH",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token||SUPABASE_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({name:n.trim()})});await loadDevicesTable();await loadDevicesFromDB();buildControls();buildDataCards();}
+async function deleteDevice(uid,name){if(!confirm(`Remove "${name}" (${uid})?`))return;await fetch(`${SUPABASE_URL}/rest/v1/devices?uid=eq.${encodeURIComponent(uid)}`,{method:"DELETE",headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token||SUPABASE_KEY}`}});await loadDevicesTable();await loadDevicesFromDB();buildControls();buildDataCards();}
+async function changeMyPassword(){
+  const p=document.getElementById("my-new-password")?.value;const c=document.getElementById("my-confirm-password")?.value;
+  const el=document.getElementById("my-pw-status");
+  if(!p||p.length<8){if(el){el.textContent="Min 8 characters.";el.style.color="var(--red)";el.style.display="block";}return;}
+  if(p!==c){if(el){el.textContent="Passwords don't match.";el.style.color="var(--red)";el.style.display="block";}return;}
+  const{error}=await supabaseClient.auth.updateUser({password:p});
+  if(el){el.textContent=error?error.message:"✅ Password updated.";el.style.color=error?"var(--red)":"var(--green-dark)";el.style.display="block";}
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+buildControls();
+buildDataCards();
+initAuth();
+</script>
+</body>
+</html>
