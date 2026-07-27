@@ -23807,8 +23807,13 @@ function populateDRProgramSelector() {
   // Keep the first placeholder option
   sel.innerHTML = '<option value="">— Select a program to auto-fill, or configure manually below —</option>';
   if (!drPrograms?.length) {
-    // Try loading if not already loaded
-    loadDRPrograms().then(() => populateDRProgramSelector());
+    // Try loading once — do NOT recurse to avoid infinite loop if table doesn't exist
+    if (!populateDRProgramSelector._tried) {
+      populateDRProgramSelector._tried = true;
+      loadDRPrograms().then(() => {
+        if (drPrograms?.length) populateDRProgramSelector();
+      }).catch(() => {});
+    }
     return;
   }
   drPrograms.filter(p => p.enabled !== false).forEach(p => {
