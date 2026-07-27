@@ -156,7 +156,7 @@ function applyCustomerConfig() {
       const logoImg = document.createElement("img");
       logoImg.src = CUSTOMER.logoMain;
       logoImg.alt = CUSTOMER.name;
-      logoImg.style.cssText = "height:36px;object-fit:contain;margin-right:8px;";
+      logoImg.style.cssText = "height:72px;object-fit:contain;margin-right:8px;";
       headerLogo.insertBefore(logoImg, headerLogo.firstChild);
     }
   }
