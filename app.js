@@ -50,7 +50,7 @@ const CUSTOMER = {
     settings:      true,        // Device Settings (bubble-up)
     evChargers:    false,       // EV Charger management
     battery:       false,       // Battery Systems
-    generators:    true,       // Generators
+    generators:    false,       // Generators
     thermostats:   false,       // Thermostat control
     pelican:       false,       // Pelican Sites
     derapi:        false,       // DERapi Assets
