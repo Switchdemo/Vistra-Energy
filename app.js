@@ -171,7 +171,7 @@ function applyCustomerConfig() {
         logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:320px;max-height:100px;width:90%;object-fit:contain;" />`;
       }
       if (CUSTOMER.logoSecondary) {
-        logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:180px;max-height:55px;object-fit:contain;" />`;
+        logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:250px;max-height:75px;object-fit:contain;" />`;
       }
       logoHtml += '</div>';
       logoContainer.insertAdjacentHTML('afterbegin', logoHtml);
