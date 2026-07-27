@@ -258,10 +258,10 @@ async function loadAllAssetsIntoDevices() {
   };
 
   const [evRows, battRows, genRows, thermRows] = await Promise.all([
-    safeGet("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       "lcp_ev_chargers_v1", "lcp_ev_dev_assets_v1"),
-    safeGet("battery_assets?enabled=eq.true&order=enrolled_at.asc",    "lcp_battery_assets_v1"),
-    safeGet("generator_assets?enabled=eq.true&order=enrolled_at.asc",  "lcp_generator_assets_v1"),
-    safeGet("thermostat_assets?enabled=eq.true&order=enrolled_at.asc", "lcp_thermostat_assets_v1"),
+    CUSTOMER.deviceTabs.evChargers  ? safeGet("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       "lcp_ev_chargers_v1", "lcp_ev_dev_assets_v1") : [],
+    CUSTOMER.deviceTabs.battery     ? safeGet("battery_assets?enabled=eq.true&order=enrolled_at.asc",    "lcp_battery_assets_v1")                      : [],
+    CUSTOMER.deviceTabs.generators  ? safeGet("generator_assets?enabled=eq.true&order=enrolled_at.asc",  "lcp_generator_assets_v1")                    : [],
+    CUSTOMER.deviceTabs.thermostats ? safeGet("thermostat_assets?enabled=eq.true&order=enrolled_at.asc", "lcp_thermostat_assets_v1")                   : [],
   ]);
 
   // Populate global arrays used by existing inject functions
@@ -304,8 +304,8 @@ async function loadAllAssetsIntoDevices() {
     if (!relayState[uid]) relayState[uid] = {1:false,2:false,3:false,4:false,all:false};
   });
 
-  // Inject Pelican sites into DEVICES for group and target selectors
-  if (typeof pelicanSites !== "undefined" && pelicanSites.length) {
+  // Inject Pelican sites into DEVICES for group and target selectors — only if enabled
+  if (CUSTOMER.deviceTabs.pelican && typeof pelicanSites !== "undefined" && pelicanSites.length) {
     pelicanSites.forEach(s => {
       const uid = `pelican_${s.site_name}`;
       if (!DEVICES.find(d => d.id === uid)) {
@@ -5040,18 +5040,18 @@ async function onSignedIn(session) {
   buildDataCards();
   // Load LC event ID counter from Supabase to prevent cross-device collisions
   loadLCEventId().catch(e => console.warn("loadLCEventId:", e.message));
-  // Load Pelican sites in background (non-blocking)
-  loadPelicanSites().catch(e => console.warn("Pelican load:", e.message));
-  loadDerapiAssets().catch(e => console.warn("DERapi load:", e.message));
-  initDerapiEventTimes();
+  // Load Pelican sites in background (non-blocking) — only if enabled
+  if (CUSTOMER.deviceTabs.pelican) loadPelicanSites().catch(e => console.warn("Pelican load:", e.message));
+  // Load DERapi assets — only if enabled
+  if (CUSTOMER.deviceTabs.derapi) { loadDerapiAssets().catch(e => console.warn("DERapi load:", e.message)); initDerapiEventTimes(); }
   // Pre-load summary programs so counts are ready when user visits the tab
-  loadSummaryPrograms().catch(e => console.warn("Summary load:", e.message));
-  // Start OpenADR background poller immediately after login
-  startOADRPoller();
-  // Start NWS weather poller if location is already saved
-  if (wxLocationData) startNWSPoller();
+  if (CUSTOMER.tabs.programs) loadSummaryPrograms().catch(e => console.warn("Summary load:", e.message));
+  // Start OpenADR background poller — only if OpenADR admin tabs are enabled
+  if (CUSTOMER.adminTabs.openadr || CUSTOMER.adminTabs.oadr3) startOADRPoller();
+  // Start NWS weather poller if location is already saved — only if weather tab enabled
+  if (CUSTOMER.tabs.weather && wxLocationData) startNWSPoller();
   // Auto-backfill last 48 hours of missing weather observations (silent, background)
-  setTimeout(() => autoBackfillWeather(), 5000);
+  if (CUSTOMER.tabs.weather) setTimeout(() => autoBackfillWeather(), 5000);
   // Apply saved theme and font size
   initTheme();
   initFontSize();
