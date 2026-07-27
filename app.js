@@ -12,6 +12,8 @@ const CUSTOMER = {
   color:         "#0058A0",                   // Primary brand color
   colorDark:     "#003D70",                   // Darker shade for text/headers
   colorLight:    "#E6EFF8",                   // Light tint for backgrounds
+  logoMain:      "Vistra_Energy.jpg",         // Main logo (login + header)
+  logoSecondary: "TXU_Energy.jpg",            // Secondary logo (login page)
 
   // ── Credentials ──────────────────────────────────────────────────────────
   supabaseUrl:   "https://ixetocyrztihkirvtuyu.supabase.co",
@@ -87,7 +89,7 @@ const CUSTOMER = {
     oadr3:         false,       // OpenADR 3.0 config
     drprograms:    false,       // DR Programs config
     help:          true,        // Help & Reference
-    monitorTriggers: true,     // Monitor & Triggers
+    monitorTriggers: false,     // Monitor & Triggers
   },
 };
 
@@ -147,11 +149,34 @@ function applyCustomerConfig() {
   const subEl = document.querySelector(".page-sub");
   if (subEl) subEl.innerHTML = CUSTOMER.subtitle + ' <span style="font-family:\'DM Mono\',monospace;font-size:10px;font-weight:600;color:var(--text-hint);background:var(--surface2);border:0.5px solid var(--border-md);padding:1px 7px;border-radius:10px;margin-left:6px;letter-spacing:0.04em;">v' + LCP_VERSION + '</span>';
 
-  // Update login overlay text
-  const loginTitle = document.querySelector("#login-overlay div[style*='font-size:22px']");
-  if (loginTitle) loginTitle.textContent = CUSTOMER.name;
-  const loginSub = document.querySelector("#login-overlay div[style*='font-size:13px']");
-  if (loginSub) loginSub.textContent = CUSTOMER.subtitle || "Sign in to continue";
+  // Inject header logo
+  if (CUSTOMER.logoMain) {
+    const headerLogo = document.querySelector(".page-header");
+    if (headerLogo) {
+      const logoImg = document.createElement("img");
+      logoImg.src = CUSTOMER.logoMain;
+      logoImg.alt = CUSTOMER.name;
+      logoImg.style.cssText = "height:36px;object-fit:contain;margin-right:8px;";
+      headerLogo.insertBefore(logoImg, headerLogo.firstChild);
+    }
+  }
+
+  // Inject login page logos
+  const loginOverlay = document.getElementById("login-overlay");
+  if (loginOverlay) {
+    const logoContainer = loginOverlay.querySelector("div[style*='text-align:center']");
+    if (logoContainer && (CUSTOMER.logoMain || CUSTOMER.logoSecondary)) {
+      let logoHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:16px;margin-bottom:12px;">';
+      if (CUSTOMER.logoMain) {
+        logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:260px;max-height:80px;object-fit:contain;" />`;
+      }
+      if (CUSTOMER.logoSecondary) {
+        logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:180px;max-height:55px;object-fit:contain;" />`;
+      }
+      logoHtml += '</div>';
+      logoContainer.insertAdjacentHTML('afterbegin', logoHtml);
+    }
+  }
 
   // ── Apply brand color to active tab styling ──
   const style = document.createElement("style");
