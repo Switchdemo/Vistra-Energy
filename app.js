@@ -87,7 +87,7 @@ const CUSTOMER = {
     oadr3:         false,       // OpenADR 3.0 config
     drprograms:    false,       // DR Programs config
     help:          true,        // Help & Reference
-    monitorTriggers: false,     // Monitor & Triggers
+    monitorTriggers: true,     // Monitor & Triggers
   },
 };
 
