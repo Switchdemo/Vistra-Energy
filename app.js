@@ -168,7 +168,7 @@ function applyCustomerConfig() {
     if (logoContainer && (CUSTOMER.logoMain || CUSTOMER.logoSecondary)) {
       let logoHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:16px;margin-bottom:12px;">';
       if (CUSTOMER.logoMain) {
-        logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:260px;max-height:80px;object-fit:contain;" />`;
+        logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:380px;max-height:120px;object-fit:contain;" />`;
       }
       if (CUSTOMER.logoSecondary) {
         logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:180px;max-height:55px;object-fit:contain;" />`;
