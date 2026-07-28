@@ -156,7 +156,7 @@ function applyCustomerConfig() {
       const logoImg = document.createElement("img");
       logoImg.src = CUSTOMER.logoMain;
       logoImg.alt = CUSTOMER.name;
-      logoImg.style.cssText = "height:72px;object-fit:contain;margin-right:8px;";
+      logoImg.style.cssText = "height:36px;object-fit:contain;margin-right:8px;";
       headerLogo.insertBefore(logoImg, headerLogo.firstChild);
     }
   }
@@ -168,10 +168,10 @@ function applyCustomerConfig() {
     if (logoContainer && (CUSTOMER.logoMain || CUSTOMER.logoSecondary)) {
       let logoHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:16px;margin-bottom:12px;">';
       if (CUSTOMER.logoMain) {
-        logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:320px;max-height:100px;width:90%;object-fit:contain;" />`;
+        logoHtml += `<img src="${CUSTOMER.logoMain}" alt="${CUSTOMER.name}" style="max-width:520px;max-height:160px;width:90%;object-fit:contain;" />`;
       }
       if (CUSTOMER.logoSecondary) {
-        logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:250px;max-height:75px;object-fit:contain;" />`;
+        logoHtml += `<img src="${CUSTOMER.logoSecondary}" alt="Partner" style="max-width:180px;max-height:55px;object-fit:contain;" />`;
       }
       logoHtml += '</div>';
       logoContainer.insertAdjacentHTML('afterbegin', logoHtml);
@@ -283,10 +283,10 @@ async function loadAllAssetsIntoDevices() {
   };
 
   const [evRows, battRows, genRows, thermRows] = await Promise.all([
-    CUSTOMER.deviceTabs.evChargers  ? safeGet("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       "lcp_ev_chargers_v1", "lcp_ev_dev_assets_v1") : [],
-    CUSTOMER.deviceTabs.battery     ? safeGet("battery_assets?enabled=eq.true&order=enrolled_at.asc",    "lcp_battery_assets_v1")                      : [],
-    CUSTOMER.deviceTabs.generators  ? safeGet("generator_assets?enabled=eq.true&order=enrolled_at.asc",  "lcp_generator_assets_v1")                    : [],
-    CUSTOMER.deviceTabs.thermostats ? safeGet("thermostat_assets?enabled=eq.true&order=enrolled_at.asc", "lcp_thermostat_assets_v1")                   : [],
+    CUSTOMER.deviceTabs.evChargers  ? safeGet("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       (_CK + "_ev_chargers_v1"), (_CK + "_ev_dev_assets_v1")) : [],
+    CUSTOMER.deviceTabs.battery     ? safeGet("battery_assets?enabled=eq.true&order=enrolled_at.asc",    (_CK + "_battery_assets_v1"))                      : [],
+    CUSTOMER.deviceTabs.generators  ? safeGet("generator_assets?enabled=eq.true&order=enrolled_at.asc",  (_CK + "_generator_assets_v1"))                    : [],
+    CUSTOMER.deviceTabs.thermostats ? safeGet("thermostat_assets?enabled=eq.true&order=enrolled_at.asc", (_CK + "_thermostat_assets_v1"))                   : [],
   ]);
 
   // Populate global arrays used by existing inject functions
@@ -3905,7 +3905,8 @@ async function undoOptOut(eventName, deviceUID) {
 //             'offseason_weekday', 'offseason_weekend', 'always'
 // Days: 'weekday', 'weekend', 'all'
 
-const BUBBLE_SCHED_KEY = "bubble_up_schedule_v1";
+const _CK = (CUSTOMER.name || "default").replace(/\s+/g, "_").toLowerCase();
+const BUBBLE_SCHED_KEY = _CK + "_bubble_up_schedule_v1";
 let bubbleRules = [];
 let bubbleSeasonConfig = {
   summer: { start: "06/01", end: "09/30", peakStart: 14, peakEnd: 19,  enabled: true },
@@ -4586,7 +4587,7 @@ function showBubbleStatus(msg, type) {
 }
 
 // ── WEATHER FORECAST ─────────────────────────────────────────────────────────
-const WEATHER_LOC_KEY = "wx_location_demo_v1";
+const WEATHER_LOC_KEY = _CK + "_wx_location_v1";
 let wxLocationData = null;  // { name, lat, lon }
 let wxForecastData = null;  // NWS forecast data
 let wxSelectedDay  = null;  // index of selected day
@@ -7216,10 +7217,10 @@ async function renderMasterAssets() {
     const [devices, assignments, ev, batt, gen, therm] = await Promise.all([
       safeGet("devices?order=name.asc"),
       safeGet("device_groups?order=group_number"),
-      safeGetWithLocal("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       "lcp_ev_chargers_v1"),
-      safeGetWithLocal("battery_assets?enabled=eq.true&order=enrolled_at.asc",   "lcp_battery_assets_v1"),
-      safeGetWithLocal("generator_assets?enabled=eq.true&order=enrolled_at.asc", "lcp_generator_assets_v1"),
-      safeGetWithLocal("thermostat_assets?enabled=eq.true&order=enrolled_at.asc","lcp_thermostat_assets_v1"),
+      safeGetWithLocal("ev_chargers?enabled=eq.true&order=enrolled_at.asc",       (_CK + "_ev_chargers_v1")),
+      safeGetWithLocal("battery_assets?enabled=eq.true&order=enrolled_at.asc",   (_CK + "_battery_assets_v1")),
+      safeGetWithLocal("generator_assets?enabled=eq.true&order=enrolled_at.asc", (_CK + "_generator_assets_v1")),
+      safeGetWithLocal("thermostat_assets?enabled=eq.true&order=enrolled_at.asc",(_CK + "_thermostat_assets_v1")),
     ]);
 
     relayDevs = (Array.isArray(devices) ? devices : []).filter(d => !d.uid?.includes("PLACEHOLDER"));
@@ -11098,7 +11099,7 @@ function stopNWSPoller() {
 
 // ── NWS Station Configuration ─────────────────────────────────────────────────
 
-const NWS_STATION_KEY = "lcp_nws_station_v1";
+const NWS_STATION_KEY = _CK + "_nws_station_v1";
 
 function toggleStationConfig() {
   const el = document.getElementById("nws-station-config");
@@ -17149,7 +17150,7 @@ const UTILITY_PRESETS = {};
 let configuredUtilities = []; // loaded from Supabase utility_outage_config
 let outagePoller = null;
 let corrChartInstance = null;
-const OUTAGE_CONFIG_KEY = "lcp_outage_utilities_v1";
+const OUTAGE_CONFIG_KEY = _CK + "_outage_utilities_v1";
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function initOutageTracker() {
@@ -17980,7 +17981,7 @@ async function saveSCADASource() {
   if (!savedToDb) {
     // Fall back to localStorage
     try {
-      const key = "lcp_scada_sources_v1";
+      const key = (_CK + "_scada_sources_v1");
       const existing = JSON.parse(localStorage.getItem(key) || "[]");
       existing.push({ ...record, id: Date.now(), record_types: recordTypes });
       localStorage.setItem(key, JSON.stringify(existing));
@@ -18020,7 +18021,7 @@ async function loadSCADASources() {
   } catch(e) { console.warn("loadSCADASources:", e.message); }
 
   try {
-    const saved = localStorage.getItem("lcp_scada_sources_v1");
+    const saved = localStorage.getItem((_CK + "_scada_sources_v1"));
     if (saved) localRows = JSON.parse(saved);
   } catch(e) {}
 
@@ -18501,7 +18502,7 @@ let evChargers     = [];   // enrolled chargers from Supabase
 let evSessions     = {};   // live session data { stationId: { connectorId, status, power, energy, idTag } }
 let evShedActive   = false;
 let evRefreshTimer = null;
-const EV_STORAGE_KEY = "lcp_ev_chargers_v1";
+const EV_STORAGE_KEY = _CK + "_ev_chargers_v1";
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 async function initEVCharging() {
@@ -18918,7 +18919,7 @@ async function loadEVSessionLog() {
 
 let evDevAssets      = [];     // all enrolled EV assets
 let evDevSelectedInteg = null; // currently selected integration type
-const EV_DEV_KEY     = "lcp_ev_dev_assets_v1";
+const EV_DEV_KEY     = _CK + "_ev_dev_assets_v1";
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 async function initEVDevicesTab() {
@@ -19559,14 +19560,14 @@ let batteryLiveData    = {};
 let battEditingId      = null; // { assetId: { soc, power_kw, mode, status } }
 let battSelectedInteg  = null;
 let battRefreshTimer   = null;
-const BATT_STORAGE_KEY = "lcp_battery_assets_v1";
+const BATT_STORAGE_KEY = _CK + "_battery_assets_v1";
 
 let thermostatAssets     = [];
 let thermostatLiveData   = {};
 let thermEditingId       = null;
 let thermSelectedInteg   = null;
 let thermRefreshTimer    = null;
-const THERM_STORAGE_KEY  = "lcp_thermostat_assets_v1";
+const THERM_STORAGE_KEY  = _CK + "_thermostat_assets_v1";
 
 // ── Runtime Monitor globals ───────────────────────────────────────────────────
 let rmSettings           = {};   // loaded from program_settings
@@ -19579,8 +19580,8 @@ let rmEditingTrigId      = null;
 let rmSelectedMode       = null;
 let rmRuntimeChart       = null;
 const RM_SETTINGS_PREFIX  = "rm_";
-const RM_TRIGGERS_KEY     = "lcp_rm_triggers_v1";
-const RM_SCHEDULES_KEY    = "lcp_rm_schedules_v1";
+const RM_TRIGGERS_KEY     = _CK + "_rm_triggers_v1";
+const RM_SCHEDULES_KEY    = _CK + "_rm_schedules_v1";
 let rmChartMode           = "timeline";   // timeline | scatter | daily
 let rmChartCondition      = "temp";       // temp | heat | humidity
 let rmShowDayNight        = false;        // toggle day/night shading on timeline
@@ -20263,7 +20264,7 @@ let generatorLiveData  = {};
 let genEditingId       = null; // { assetId: { status, kw, runtime, alarms } }
 let genSelectedInteg   = null;
 let genRefreshTimer    = null;
-const GEN_STORAGE_KEY  = "lcp_generator_assets_v1";
+const GEN_STORAGE_KEY  = _CK + "_generator_assets_v1";
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function initGeneratorsTab() {
@@ -22171,7 +22172,7 @@ async function loadDRPrograms() {
     if (Array.isArray(rows) && rows.length) dbRows = rows;
   } catch(e) {}
   try {
-    const saved = localStorage.getItem("lcp_dr_programs_v1");
+    const saved = localStorage.getItem((_CK + "_dr_programs_v1"));
     if (saved) localRows = JSON.parse(saved);
   } catch(e) {}
 
@@ -22401,12 +22402,12 @@ async function saveDRProgram() {
 
   if (!saved) {
     // localStorage fallback
-    const local = JSON.parse(localStorage.getItem("lcp_dr_programs_v1") || "[]");
+    const local = JSON.parse(localStorage.getItem((_CK + "_dr_programs_v1")) || "[]");
     const id    = drpEditingId || `local_${Date.now()}`;
     const idx   = local.findIndex(p => p.id?.toString() === id?.toString());
     const entry = { ...record, id, mappings: drpMappings, devices };
     if (idx >= 0) local[idx] = entry; else local.push(entry);
-    localStorage.setItem("lcp_dr_programs_v1", JSON.stringify(local));
+    localStorage.setItem((_CK + "_dr_programs_v1"), JSON.stringify(local));
   }
 
   setStatus("ready", `DR Program "${name}" saved.`);
@@ -22571,8 +22572,8 @@ async function deleteDRProgram(programId) {
       method:"DELETE", headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${currentSession?.access_token || SUPABASE_KEY}`}
     });
   } catch(e) {}
-  const local = JSON.parse(localStorage.getItem("lcp_dr_programs_v1") || "[]");
-  localStorage.setItem("lcp_dr_programs_v1", JSON.stringify(local.filter(p => p.id?.toString() !== programId?.toString())));
+  const local = JSON.parse(localStorage.getItem((_CK + "_dr_programs_v1")) || "[]");
+  localStorage.setItem((_CK + "_dr_programs_v1"), JSON.stringify(local.filter(p => p.id?.toString() !== programId?.toString())));
   await loadDRPrograms();
 }
 
@@ -23613,7 +23614,7 @@ async function loadSummaryPrograms() {
     const rows = await supabaseGet("dr_programs?order=created_at.asc").catch(() => []);
     if (Array.isArray(rows) && rows.length) drProgs = rows;
     else {
-      const saved = localStorage.getItem("lcp_dr_programs_v1");
+      const saved = localStorage.getItem((_CK + "_dr_programs_v1"));
       if (saved) drProgs = JSON.parse(saved);
     }
   } catch(e) {}
@@ -23766,7 +23767,7 @@ async function exportProgramsCSV() {
     const rows = await supabaseGet("dr_programs?order=created_at.asc").catch(() => []);
     if (Array.isArray(rows) && rows.length) drProgs = rows;
     else {
-      const saved = localStorage.getItem("lcp_dr_programs_v1");
+      const saved = localStorage.getItem((_CK + "_dr_programs_v1"));
       if (saved) drProgs = JSON.parse(saved);
     }
   } catch(e) {}
@@ -24093,7 +24094,7 @@ function renderOadr3Mappings() {
 
   // Load saved mappings from same store as 2.0b (shared config)
   const saved = (() => {
-    try { return JSON.parse(localStorage.getItem("lcp_oadr_mappings") || "{}"); } catch(e) { return {}; }
+    try { return JSON.parse(localStorage.getItem((_CK + "_oadr_mappings")) || "{}"); } catch(e) { return {}; }
   })();
 
   const LEVELS = [
@@ -24138,14 +24139,14 @@ function renderOadr3Mappings() {
 
 function saveOadr3Mappings() {
   const saved = (() => {
-    try { return JSON.parse(localStorage.getItem("lcp_oadr_mappings") || "{}"); } catch(e) { return {}; }
+    try { return JSON.parse(localStorage.getItem((_CK + "_oadr_mappings")) || "{}"); } catch(e) { return {}; }
   })();
   [0,1,2,3].forEach(lv => {
     const strat = document.getElementById(`oadr3-map-strat-${lv}`)?.value || "";
     const mode  = document.getElementById(`oadr3-map-mode-${lv}`)?.value  || "dlc";
     saved[`oadr3_${lv}`] = { strategy:strat, mode };
   });
-  localStorage.setItem("lcp_oadr_mappings", JSON.stringify(saved));
+  localStorage.setItem((_CK + "_oadr_mappings"), JSON.stringify(saved));
   const statusEl = document.getElementById("oadr3-mapping-status");
   if (statusEl) { statusEl.textContent = "✅ Mappings saved."; statusEl.style.display="block"; statusEl.style.color="var(--green-dark)"; setTimeout(()=>statusEl.style.display="none",2500); }
 }
@@ -25075,7 +25076,7 @@ function applyTheme(name) {
   });
 
   // Persist
-  try { localStorage.setItem("lcp_theme", name); } catch(e) {}
+  try { localStorage.setItem((_CK + "_theme"), name); } catch(e) {}
 }
 
 
@@ -25090,12 +25091,12 @@ function applyFontSize(size) {
     btn.classList.toggle("active", btn.dataset.size === size);
   });
 
-  try { localStorage.setItem("lcp_font_size", size); } catch(e) {}
+  try { localStorage.setItem((_CK + "_font_size"), size); } catch(e) {}
 }
 
 function initFontSize() {
   let saved = "14px";
-  try { saved = localStorage.getItem("lcp_font_size") || "14px"; } catch(e) {}
+  try { saved = localStorage.getItem((_CK + "_font_size")) || "14px"; } catch(e) {}
   applyFontSize(saved);
 
   document.querySelectorAll(".font-size-btn").forEach(btn => {
@@ -25105,7 +25106,7 @@ function initFontSize() {
 
 function initTheme() {
   let saved = "default";
-  try { saved = localStorage.getItem("lcp_theme") || "default"; } catch(e) {}
+  try { saved = localStorage.getItem((_CK + "_theme")) || "default"; } catch(e) {}
   applyTheme(saved);
 
   // Wire up all swatch instances
