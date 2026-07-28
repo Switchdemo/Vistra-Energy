@@ -8,7 +8,7 @@ const CUSTOMER = {
 
   // ── Branding ─────────────────────────────────────────────────────────────
   name:          "Vistra Energy",             // Company name shown in header
-  subtitle:      "Demand Response Portal",    // Tagline under the name
+  subtitle:      "Load Control & Measurement Portal",    // Tagline under the name
   color:         "#0058A0",                   // Primary brand color
   colorDark:     "#003D70",                   // Darker shade for text/headers
   colorLight:    "#E6EFF8",                   // Light tint for backgrounds
