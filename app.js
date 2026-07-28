@@ -12,8 +12,8 @@ const CUSTOMER = {
   color:         "#0058A0",                   // Primary brand color
   colorDark:     "#003D70",                   // Darker shade for text/headers
   colorLight:    "#E6EFF8",                   // Light tint for backgrounds
-  logoMain:      "Vistra_Energy.jpg",         // Main logo (login + header)
-  logoSecondary: "TXU_Energy.jpg",            // Secondary logo (login page)
+  logoMain:      "",                          // Main logo (login + header)
+  logoSecondary: "",                          // Secondary logo (login page)
 
   // ── Credentials ──────────────────────────────────────────────────────────
   supabaseUrl:   "https://ixetocyrztihkirvtuyu.supabase.co",
