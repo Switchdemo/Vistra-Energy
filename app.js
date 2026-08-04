@@ -5064,6 +5064,7 @@ async function onSignedIn(session) {
   await loadDevicesFromDB();
   buildControls();
   buildDataCards();
+  loadLatest();  // Initialize device badges (online/offline) immediately on login
   // Load LC event ID counter from Supabase to prevent cross-device collisions
   loadLCEventId().catch(e => console.warn("loadLCEventId:", e.message));
   // Load Pelican sites in background (non-blocking) — only if enabled
